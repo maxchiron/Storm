@@ -69,21 +69,35 @@ VIAddVersionKey /LANG=2052 "CompanyName" "${APP_PUBLISHER}"
 
 Function .onInit
   SetShellVarContext current
-  ; Refuse to install over a running copy.
+  ; A running copy of Storm holds its own files open, and they cannot be
+  ; replaced while it does. Warn before touching anything — the install
+  ; section double-checks and refuses if the application is still running.
   IfFileExists "$INSTDIR\${APP_EXE}" 0 done
-  MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION \
-    "${APP_NAME} 正在运行，请先关闭它再继续安装。$\n$\n要继续安装吗？" \
-    /SD IDOK IDOK done
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "${APP_NAME} 似乎正在运行。$\n$\n请先关闭 ${APP_NAME} 再继续安装，否则正在使用的文件无法被替换。$\n$\n要继续吗？" /SD IDOK IDOK done
     Abort
   done:
 FunctionEnd
 
 Section "安装" SEC_INSTALL
   SetOutPath "$INSTDIR"
+
+  ; A running executable cannot be deleted, so this doubles as an "is Storm
+  ; still running?" probe. Removing the old copy here is harmless — the
+  ; payload below contains a fresh one. Without this check the extraction
+  ; would silently skip the locked files and leave a half-updated program
+  ; behind, which still looks like the old version after a "successful"
+  ; install.
+  Delete "$INSTDIR\${APP_EXE}"
+  IfFileExists "$INSTDIR\${APP_EXE}" app_running app_not_running
+  app_running:
+    MessageBox MB_OK|MB_ICONEXCLAMATION "${APP_NAME} 正在运行，无法更新程序文件。$\n$\n请先关闭 ${APP_NAME}（包括系统托盘中的图标），然后重新运行安装程序。"
+    Abort
+  app_not_running:
+
   File "${APP_7Z}"
 
   ; Unpack the application payload. The plugin's return value is not trusted —
-  ; the extracted executable is checked instead.
+  ; the extracted files are checked instead.
   DetailPrint "正在解压程序文件，请稍候…"
   nsis7z::Extract "$INSTDIR\app.7z" "$INSTDIR"
   Pop $0
@@ -95,6 +109,17 @@ Section "安装" SEC_INSTALL
     MessageBox MB_OK|MB_ICONSTOP "安装失败：无法解压程序文件（$0）。$\n$\n请重新下载安装包后再试。"
     Abort
   extract_ok:
+
+  ; The payload carries a marker whose name embeds the version it was built
+  ; from. It proves that the files on disk came from this installer and not
+  ; from an older one. (The version rides in the filename so the check needs
+  ; no string comparison, which is fragile in a Unicode NSIS build.)
+  IfFileExists "$INSTDIR\Storm.${APP_VERSION}.version" version_ok version_missing
+  version_missing:
+    MessageBox MB_OK|MB_ICONSTOP "安装失败：安装包不完整或与本次安装的版本不一致。$\n$\n请重新下载安装程序后再试。"
+    Abort
+  version_ok:
+    Delete "$INSTDIR\Storm.${APP_VERSION}.version"
 
   SetOutPath "$INSTDIR"
   File "${APP_ICON}"

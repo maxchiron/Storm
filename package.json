@@ -1,6 +1,6 @@
 {
   "name": "storm",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Storm — a local game library manager with a Steam-style poster wall",
   "main": "./out/main/index.js",
   "license": "MIT",

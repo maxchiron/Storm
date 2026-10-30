@@ -192,9 +192,17 @@ function ensureAppBuilt() {
 function makePayload(sevenZip) {
   const appDir = path.join(RELEASE, 'win-unpacked')
   const payload = path.join(RELEASE, 'app.7z')
+  const marker = path.join(appDir, `Storm.${pkg.version}.version`)
   console.log('· packing the application payload…')
   fs.rmSync(payload, { force: true })
-  execFileSync(sevenZip, ['a', '-t7z', '-mx=9', '-bso0', payload, `${appDir}/*`], { cwd: ROOT })
+  // The marker's *name* embeds the version; the installer checks for its
+  // presence after extraction to prove the files came from this build.
+  fs.writeFileSync(marker, pkg.version, 'utf8')
+  try {
+    execFileSync(sevenZip, ['a', '-t7z', '-mx=9', '-bso0', payload, `${appDir}/*`], { cwd: ROOT })
+  } finally {
+    fs.rmSync(marker, { force: true })
+  }
   return payload
 }
 
