@@ -1,0 +1,33 @@
+appId: com.storm.gamelib
+productName: Storm
+copyright: Storm
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+  - package.json
+asar: true
+win:
+  icon: build/icon.ico
+  target:
+    # The release installer is produced by scripts/build-installer.mjs, which
+    # drives makensis directly. electron-builder's NSIS target needs wine to
+    # materialise its uninstaller, so it only works on Windows. This block is
+    # kept for `electron-builder --win nsis` on a Windows machine.
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Storm
+  installerLanguages:
+    - zh_CN
+    - en_US
+  language: '2052'
+  deleteAppDataOnUninstall: false
