@@ -59,6 +59,15 @@
   background: linear-gradient(180deg, rgba(4, 6, 12, 0.85), rgba(4, 6, 12, 0));
 }
 
+/* The app shell underneath this full-screen overlay marks the sidebar brand
+   and the title bar as window-drag regions, and Electron gives those regions
+   priority over anything painted on top of them. Without this the header
+   buttons sit in the drag band of the window: a press on them starts a
+   window drag instead of reaching the button. */
+.detail-bar button {
+  -webkit-app-region: no-drag;
+}
+
 .detail-back {
   display: inline-flex;
   align-items: center;
