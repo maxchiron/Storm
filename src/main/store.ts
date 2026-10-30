@@ -15,6 +15,14 @@ interface Db {
 
 const DB_VERSION = 1
 
+/**
+ * Libraries written before the hidden flag existed have no `hidden` field —
+ * treat a missing value as "visible" so old files keep working.
+ */
+function normalizeGame(game: Game): Game {
+  return { ...game, hidden: Boolean(game.hidden) }
+}
+
 export class Store {
   private _dataDir: string | null = null
   private data: Db = { version: DB_VERSION, games: [], settings: { ...DEFAULT_SETTINGS }, sessions: [] }
@@ -47,7 +55,7 @@ export class Store {
       const parsed = JSON.parse(raw) as Partial<Db>
       this.data = {
         version: parsed.version ?? DB_VERSION,
-        games: Array.isArray(parsed.games) ? parsed.games : [],
+        games: Array.isArray(parsed.games) ? parsed.games.map(normalizeGame) : [],
         settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
         sessions: Array.isArray(parsed.sessions) ? parsed.sessions : []
       }
@@ -81,7 +89,7 @@ export class Store {
 
   /** Replace the whole database (used by import). */
   replace(next: { games?: Game[]; settings?: Partial<AppSettings> }): void {
-    if (next.games) this.data.games = next.games
+    if (next.games) this.data.games = next.games.map(normalizeGame)
     if (next.settings) this.data.settings = { ...DEFAULT_SETTINGS, ...next.settings }
     this.scheduleSave()
   }

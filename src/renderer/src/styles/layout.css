@@ -205,6 +205,23 @@
   color: var(--accent);
 }
 
+/* The private shelf lives below the ordinary filters — it only appears once
+   something is actually hidden. */
+.nav-private {
+  margin-top: 6px;
+}
+
+.nav-sep {
+  height: 1px;
+  margin: 4px 10px 8px;
+  background: var(--stroke);
+}
+
+.nav-item--private .nav-icon {
+  color: var(--private);
+  opacity: 1;
+}
+
 .sidebar-stats {
   display: flex;
   flex-direction: column;

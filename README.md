@@ -30,6 +30,10 @@ date. Your library becomes an actual gaming log, not a folder of shortcuts.
 **Everything about a game in one place.** Cover art, wallpaper, executable
 path, install location, save location, tags and notes.
 
+**Private shelf.** Some games are yours alone. Hide one and it leaves the wall
+completely — no poster, no count, no mention in search. When you are on your
+own, open the private shelf to find it again and bring it back.
+
 **Bilingual.** English and Simplified Chinese, switchable in Settings.
 
 ---
@@ -43,6 +47,7 @@ path, install location, save location, tags and notes.
 | **Playtime tracking** | Process tracking with a Windows fallback for launchers that spawn and exit immediately |
 | **Add / edit / delete** | Native file pickers for `.exe`, install folder and save folder; posters and wallpapers are copied into the library |
 | **Filters & search** | All · Installed · Not installed · Played · Unplayed · Favorites, with live search across title, tags and notes |
+| **Hidden games** | A private shelf: hidden games leave the wall, the counts and the search results, and only come back when you unhide them |
 | **Sorting** | Title, date added, last played, playtime, sessions |
 | **Detail page** | Wallpaper backdrop, path rows with reveal-in-folder and copy, tags, notes, install status |
 | **Settings** | Language, accent colour, poster size, tray behaviour, detection interval, motion reduction, JSON import/export |

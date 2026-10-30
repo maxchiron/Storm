@@ -3,12 +3,13 @@ import { motion } from 'framer-motion'
 import { useStorm, useT } from '../store/useStorm'
 import type { FilterKey } from '@shared/types'
 import type { TranslationKey } from '@shared/i18n'
-import { countByFilter, totalPlaytime } from '../utils/selectors'
+import { countByFilter, totalPlaytime, visibleGames } from '../utils/selectors'
 import { formatPlaytime } from '../utils/format'
 import {
   BoltIcon,
   CheckIcon,
   ClockIcon,
+  EyeOffIcon,
   FolderIcon,
   GridIcon,
   HeartIcon,
@@ -36,7 +37,7 @@ export default function Sidebar(): React.JSX.Element {
   const t = useT()
 
   const counts = useMemo(() => countByFilter(games), [games])
-  const playtime = useMemo(() => totalPlaytime(games), [games])
+  const playtime = useMemo(() => totalPlaytime(visibleGames(games)), [games])
 
   const pick = (key: FilterKey): void => {
     setSection('library')
@@ -88,6 +89,33 @@ export default function Sidebar(): React.JSX.Element {
             </motion.button>
           )
         })}
+        {counts.hidden > 0 && (
+          <div className="nav-private">
+            <div className="nav-sep" />
+            <motion.button
+              type="button"
+              className="nav-item nav-item--private"
+              onClick={() => pick('hidden')}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {section === 'library' && filter === 'hidden' && (
+                <motion.span
+                  className="nav-pill"
+                  layoutId="nav-pill"
+                  transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                />
+              )}
+              <span className="nav-icon">
+                <EyeOffIcon size={17} />
+              </span>
+              <span className="nav-text">{t('nav.hidden')}</span>
+              <span className="nav-count">{counts.hidden}</span>
+            </motion.button>
+          </div>
+        )}
       </nav>
 
       <div className="sidebar-stats">

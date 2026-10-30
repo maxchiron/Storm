@@ -24,6 +24,10 @@
   --ok: #4ade80;
   --warn: #fbbf24;
 
+  /* The private shelf — hidden games and the view that reveals them. */
+  --private: #a78bfa;
+  --private-rgb: 167, 139, 250;
+
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 18px;
@@ -348,6 +352,11 @@ select {
   border-color: rgba(248, 113, 113, 0.32);
   background: rgba(248, 113, 113, 0.12);
 }
+.chip--hidden {
+  color: #ddd6fe;
+  border-color: rgba(var(--private-rgb), 0.32);
+  background: rgba(var(--private-rgb), 0.14);
+}
 .chip-dot {
   width: 5px;
   height: 5px;
@@ -406,6 +415,11 @@ select {
   border-color: rgba(var(--accent-rgb), 0.45);
   background: rgba(var(--accent-rgb), 0.16);
 }
+.icon-btn--private.is-on {
+  color: var(--private);
+  border-color: rgba(var(--private-rgb), 0.45);
+  background: rgba(var(--private-rgb), 0.16);
+}
 .icon-btn--danger:hover {
   color: #fecaca;
   background: rgba(239, 68, 68, 0.22);
@@ -441,6 +455,10 @@ select {
 .toggle.is-on .toggle-track {
   background: rgba(var(--accent-rgb), 0.42);
   border-color: rgba(var(--accent-rgb), 0.6);
+}
+.toggle--private.is-on .toggle-track {
+  background: rgba(var(--private-rgb), 0.42);
+  border-color: rgba(var(--private-rgb), 0.6);
 }
 .toggle-thumb {
   position: absolute;

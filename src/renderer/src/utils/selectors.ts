@@ -2,14 +2,22 @@ import type { FilterKey, Game, SortKey } from '@shared/types'
 
 export function countByFilter(games: Game[]): Record<FilterKey, number> {
   const counts: Record<FilterKey, number> = {
-    all: games.length,
+    all: 0,
     installed: 0,
     notInstalled: 0,
     played: 0,
     unplayed: 0,
-    favorite: 0
+    favorite: 0,
+    hidden: 0
   }
   for (const g of games) {
+    // Hidden games belong to the private shelf alone — they never count
+    // towards the visible library.
+    if (g.hidden) {
+      counts.hidden++
+      continue
+    }
+    counts.all++
     if (g.installed) counts.installed++
     else counts.notInstalled++
     if (g.played) counts.played++
@@ -22,6 +30,12 @@ export function countByFilter(games: Game[]): Record<FilterKey, number> {
 export function applyFilter(games: Game[], filter: FilterKey, query: string): Game[] {
   const q = query.trim().toLowerCase()
   return games.filter((g) => {
+    // A hidden game only shows up in the private shelf.
+    if (filter === 'hidden') {
+      if (!g.hidden) return false
+    } else if (g.hidden) {
+      return false
+    }
     switch (filter) {
       case 'installed':
         if (!g.installed) return false
@@ -73,4 +87,9 @@ export function totalPlaytime(games: Game[]): number {
 
 export function totalSessions(games: Game[]): number {
   return games.reduce((sum, g) => sum + g.playCount, 0)
+}
+
+/** The games the owner can see — hidden ones stay out of the library. */
+export function visibleGames(games: Game[]): Game[] {
+  return games.filter((g) => !g.hidden)
 }

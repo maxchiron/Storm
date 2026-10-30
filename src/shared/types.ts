@@ -8,6 +8,7 @@ export type FilterKey =
   | 'played'
   | 'unplayed'
   | 'favorite'
+  | 'hidden'
 export type SortKey = 'title' | 'addedAt' | 'lastPlayed' | 'playtime' | 'playCount'
 export type FolderKind = 'install' | 'save' | 'data'
 
@@ -24,6 +25,8 @@ export interface Game {
   installed: boolean
   played: boolean
   favorite: boolean
+  /** Kept off the wall — only shows up in the private shelf. */
+  hidden: boolean
   playCount: number
   playtimeMinutes: number
   firstPlayedAt: string | null
@@ -43,6 +46,7 @@ export interface GameInput {
   savePath?: string | null
   played?: boolean
   favorite?: boolean
+  hidden?: boolean
   tags?: string[]
   note?: string
 }

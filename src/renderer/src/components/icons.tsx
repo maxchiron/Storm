@@ -67,6 +67,22 @@ export const HeartIcon = (p: IconProps): React.JSX.Element => (
   </Icon>
 )
 
+export const EyeIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="3.1" />
+  </Icon>
+)
+
+export const EyeOffIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M9.9 6.1A9.3 9.3 0 0 1 12 5.8c6 0 9.5 6.2 9.5 6.2a17.6 17.6 0 0 1-3.3 4.1" />
+    <path d="M6.5 8A16.9 16.9 0 0 0 2.5 12s3.5 6.2 9.5 6.2a9.5 9.5 0 0 0 3.6-.7" />
+    <path d="M9.9 10a3.1 3.1 0 0 0 4.1 4.1" />
+    <path d="M4 4l16 16" />
+  </Icon>
+)
+
 export const SearchIcon = (p: IconProps): React.JSX.Element => (
   <Icon {...p}>
     <circle cx="11" cy="11" r="6.5" />

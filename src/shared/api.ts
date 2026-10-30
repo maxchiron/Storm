@@ -6,6 +6,7 @@ export interface StormApi {
   deleteGame(id: string): Promise<void>
   togglePlayed(id: string): Promise<Game>
   toggleFavorite(id: string): Promise<Game>
+  setHidden(id: string, hidden: boolean): Promise<Game>
   setInstalled(id: string, installed: boolean): Promise<Game>
   pickImage(kind: 'covers' | 'banners'): Promise<string | null>
   pickExe(current?: string): Promise<string | null>

@@ -8,6 +8,7 @@ const api: StormApi = {
   deleteGame: (id) => ipcRenderer.invoke('storm:deleteGame', id),
   togglePlayed: (id) => ipcRenderer.invoke('storm:togglePlayed', id),
   toggleFavorite: (id) => ipcRenderer.invoke('storm:toggleFavorite', id),
+  setHidden: (id, hidden) => ipcRenderer.invoke('storm:setHidden', id, hidden),
   setInstalled: (id, installed) => ipcRenderer.invoke('storm:setInstalled', id, installed),
   pickImage: (kind) => ipcRenderer.invoke('storm:pickImage', kind),
   pickExe: (current) => ipcRenderer.invoke('storm:pickExe', current),

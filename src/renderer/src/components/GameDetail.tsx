@@ -7,6 +7,8 @@ import {
   ChevronIcon,
   ClockIcon,
   CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
   ExternalIcon,
   FolderIcon,
   HeartIcon,
@@ -71,6 +73,7 @@ export default function GameDetail(): React.JSX.Element {
   const requestDelete = useStorm((s) => s.requestDelete)
   const launchGame = useStorm((s) => s.launchGame)
   const toggleFavorite = useStorm((s) => s.toggleFavorite)
+  const setHidden = useStorm((s) => s.setHidden)
   const togglePlayed = useStorm((s) => s.togglePlayed)
   const openFolder = useStorm((s) => s.openFolder)
   const revealPath = useStorm((s) => s.revealPath)
@@ -151,6 +154,14 @@ export default function GameDetail(): React.JSX.Element {
                 </button>
                 <button
                   type="button"
+                  className={`icon-btn icon-btn--private${game.hidden ? ' is-on' : ''}`}
+                  title={game.hidden ? t('action.unhide') : t('action.hide')}
+                  onClick={() => void setHidden(game.id, !game.hidden)}
+                >
+                  {game.hidden ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
+                </button>
+                <button
+                  type="button"
                   className="icon-btn"
                   title={t('action.edit')}
                   onClick={() => openForm(game.id)}
@@ -193,6 +204,12 @@ export default function GameDetail(): React.JSX.Element {
                   <span className={`chip ${game.played ? 'chip--accent' : 'chip--muted'}`}>
                     {game.played ? t('state.played') : t('state.unplayed')}
                   </span>
+                  {game.hidden && (
+                    <span className="chip chip--hidden">
+                      <EyeOffIcon size={12} />
+                      {t('state.hidden')}
+                    </span>
+                  )}
                   {session && (
                     <span className="chip chip--live">
                       <span className="live-dot" />

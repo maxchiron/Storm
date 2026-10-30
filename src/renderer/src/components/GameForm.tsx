@@ -16,6 +16,7 @@ interface FormState {
   note: string
   played: boolean
   favorite: boolean
+  hidden: boolean
 }
 
 const EMPTY: FormState = {
@@ -28,7 +29,8 @@ const EMPTY: FormState = {
   tags: '',
   note: '',
   played: false,
-  favorite: false
+  favorite: false,
+  hidden: false
 }
 
 function dirnameOf(p: string): string {
@@ -62,7 +64,8 @@ export default function GameForm(): React.JSX.Element {
             tags: editing.tags.join(', '),
             note: editing.note,
             played: editing.played,
-            favorite: editing.favorite
+            favorite: editing.favorite,
+            hidden: editing.hidden
           }
         : { ...EMPTY }
     )
@@ -131,7 +134,8 @@ export default function GameForm(): React.JSX.Element {
           .filter(Boolean),
         note: form.note,
         played: form.played,
-        favorite: form.favorite
+        favorite: form.favorite,
+        hidden: form.hidden
       })
       toast(editing ? t('toast.saved') : t('toast.created'), 'success')
       closeForm()
@@ -336,7 +340,18 @@ export default function GameForm(): React.JSX.Element {
                     </span>
                     {t('form.favorite')}
                   </button>
+                  <button
+                    type="button"
+                    className={`toggle toggle--private${form.hidden ? ' is-on' : ''}`}
+                    onClick={() => set('hidden', !form.hidden)}
+                  >
+                    <span className="toggle-track">
+                      <motion.span className="toggle-thumb" layout transition={SPRING_SOFT} />
+                    </span>
+                    {t('form.hidden')}
+                  </button>
                 </div>
+                <span className="field-hint">{t('form.hint.hidden')}</span>
               </div>
             </div>
 

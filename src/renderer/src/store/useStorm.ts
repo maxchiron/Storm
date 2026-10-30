@@ -46,6 +46,7 @@ interface StormState {
   launchGame: (id: string) => Promise<void>
   togglePlayed: (id: string) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
+  setHidden: (id: string, hidden: boolean) => Promise<void>
   openFolder: (kind: 'install' | 'save' | 'data', id?: string) => Promise<void>
   revealPath: (target: string) => Promise<void>
   copyPath: (target: string) => Promise<void>
@@ -131,6 +132,12 @@ export const useStorm = create<StormState>((set, get) => ({
 
   toggleFavorite: async (id) => {
     await window.storm.toggleFavorite(id)
+  },
+
+  setHidden: async (id, hidden) => {
+    await window.storm.setHidden(id, hidden)
+    const lang = get().settings.language
+    get().toast(translate(lang, hidden ? 'toast.hidden' : 'toast.unhidden'), 'success')
   },
 
   openFolder: async (kind, id) => {

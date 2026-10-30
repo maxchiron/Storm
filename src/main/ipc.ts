@@ -35,6 +35,7 @@ function applyInput(game: Game, input: GameInput): void {
   if (input.savePath !== undefined) game.savePath = input.savePath?.trim() || null
   if (input.played !== undefined) game.played = input.played
   if (input.favorite !== undefined) game.favorite = input.favorite
+  if (input.hidden !== undefined) game.hidden = input.hidden
   if (input.tags !== undefined) game.tags = input.tags
   if (input.note !== undefined) game.note = input.note
 }
@@ -97,6 +98,7 @@ export function registerIpc(): void {
             installed: false,
             played: payload.played ?? false,
             favorite: payload.favorite ?? false,
+            hidden: payload.hidden ?? false,
             playCount: 0,
             playtimeMinutes: 0,
             firstPlayedAt: null,
@@ -153,6 +155,20 @@ export function registerIpc(): void {
       const game = db.games.find((g) => g.id === id)
       if (!game) throw new Error('NOT_FOUND')
       game.favorite = !game.favorite
+      game.updatedAt = new Date().toISOString()
+      out = game
+    })
+    await store.save()
+    pushGames()
+    return out
+  })
+
+  ipcMain.handle('storm:setHidden', async (_e, id: string, hidden: boolean): Promise<Game> => {
+    let out!: Game
+    store.mutate((db) => {
+      const game = db.games.find((g) => g.id === id)
+      if (!game) throw new Error('NOT_FOUND')
+      game.hidden = hidden
       game.updatedAt = new Date().toISOString()
       out = game
     })
