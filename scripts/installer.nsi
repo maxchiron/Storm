@@ -6,7 +6,9 @@
 ; installed. makensis produces a complete installer (and its own native
 ; uninstaller) on any platform.
 ;
-; Everything below is passed in with /D at compile time.
+; Everything below is passed in with -D at compile time. UNINSTALL_LIST
+; names a generated file that lists every file the payload installs, so the
+; uninstaller removes exactly those and nothing else.
 
 Unicode true
 
@@ -28,6 +30,9 @@ Unicode true
 !ifndef APP_PUBLISHER
   !define APP_PUBLISHER "Storm"
 !endif
+; The icon is copied next to the executable under this name. (APP_ICON is the
+; absolute path of the source file on the build machine.)
+!define APP_ICON_FILE "${APP_NAME}.ico"
 
 Name "${APP_NAME}"
 OutFile "${OUT_FILE}"
@@ -56,6 +61,7 @@ VIAddVersionKey /LANG=2052 "CompanyName" "${APP_PUBLISHER}"
 !define MUI_FINISHPAGE_RUN_CHECKED
 
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirectoryLeave
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -67,15 +73,55 @@ VIAddVersionKey /LANG=2052 "CompanyName" "${APP_PUBLISHER}"
 
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
+; A running copy of Storm holds its own executable open. Windows refuses to
+; open a running .exe for writing, so a write-open that fails means Storm is
+; running — a reliable probe that changes nothing on disk.
+!macro STORM_WAIT_UNTIL_CLOSED
+  storm_probe:
+  IfFileExists "$INSTDIR\${APP_EXE}" 0 storm_closed
+    ClearErrors
+    FileOpen $0 "$INSTDIR\${APP_EXE}" a
+    IfErrors storm_running
+    FileClose $0
+    Goto storm_closed
+  storm_running:
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "${APP_NAME} 正在运行。$\n$\n请先退出 ${APP_NAME}（包括系统托盘中的图标），然后点击“重试”。" /SD IDCANCEL IDRETRY storm_probe
+    Abort
+  storm_closed:
+!macroend
+
 Function .onInit
   SetShellVarContext current
-  ; A running copy of Storm holds its own files open, and they cannot be
-  ; replaced while it does. Warn before touching anything — the install
-  ; section double-checks and refuses if the application is still running.
-  IfFileExists "$INSTDIR\${APP_EXE}" 0 done
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "${APP_NAME} 似乎正在运行。$\n$\n请先关闭 ${APP_NAME} 再继续安装，否则正在使用的文件无法被替换。$\n$\n要继续吗？" /SD IDOK IDOK done
-    Abort
-  done:
+  !insertmacro STORM_WAIT_UNTIL_CLOSED
+FunctionEnd
+
+Function un.onInit
+  SetShellVarContext current
+  !insertmacro STORM_WAIT_UNTIL_CLOSED
+FunctionEnd
+
+; Storm always gets a folder of its own. If the chosen folder already holds
+; other things (say the user typed D:\Games), install into a "Storm"
+; subfolder instead of mixing with them.
+Function DirectoryLeave
+  IfFileExists "$INSTDIR\${APP_EXE}" dir_ok
+  ClearErrors
+  FindFirst $0 $1 "$INSTDIR\*.*"
+  IfErrors dir_ok
+  dir_scan:
+    StrCmp $1 "" dir_empty
+    StrCmp $1 "." dir_next
+    StrCmp $1 ".." dir_next
+    FindClose $0
+    StrCpy $INSTDIR "$INSTDIR\${APP_NAME}"
+    MessageBox MB_OK|MB_ICONINFORMATION "所选文件夹里已经有其他文件，Storm 将安装到它的子文件夹：$\n$\n$INSTDIR"
+    Goto dir_ok
+  dir_next:
+    FindNext $0 $1
+    Goto dir_scan
+  dir_empty:
+    FindClose $0
+  dir_ok:
 FunctionEnd
 
 Section "安装" SEC_INSTALL
@@ -122,14 +168,14 @@ Section "安装" SEC_INSTALL
     Delete "$INSTDIR\Storm.${APP_VERSION}.version"
 
   SetOutPath "$INSTDIR"
-  File "${APP_ICON}"
+  File "/oname=${APP_ICON_FILE}" "${APP_ICON}"
   WriteUninstaller "$INSTDIR\Uninstall ${APP_NAME}.exe"
 
   ; Shortcuts
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-  CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_ICON}" 0
+  CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_ICON_FILE}" 0
   CreateShortCut "$SMPROGRAMS\${APP_NAME}\卸载 ${APP_NAME}.lnk" "$INSTDIR\Uninstall ${APP_NAME}.exe"
-  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_ICON}" 0
+  CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_ICON_FILE}" 0
 
   ; Remember the install location for the next update
   WriteRegStr HKCU "Software\${APP_NAME}" "InstallLocation" "$INSTDIR"
@@ -150,9 +196,16 @@ Section "安装" SEC_INSTALL
 SectionEnd
 
 Section "Uninstall"
+  ; Remove exactly the files this version installed — never "everything in
+  ; the folder", which would take the user's own files with it if Storm was
+  ; ever installed into a shared folder.
+!ifdef UNINSTALL_LIST
+  !include "${UNINSTALL_LIST}"
+!endif
   Delete "$INSTDIR\Uninstall ${APP_NAME}.exe"
-  Delete "$INSTDIR\${APP_ICON}"
-  RMDir /r "$INSTDIR"
+  Delete "$INSTDIR\${APP_ICON_FILE}"
+  ; Only removed if nothing else is left in it.
+  RMDir "$INSTDIR"
 
   Delete "$DESKTOP\${APP_NAME}.lnk"
   RMDir /r "$SMPROGRAMS\${APP_NAME}"

@@ -18,7 +18,49 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
 const RELEASE = path.join(ROOT, 'release')
 const BUILD = path.join(ROOT, 'build')
-const CACHE = path.join(os.homedir(), '.cache', 'electron-builder')
+const IS_WINDOWS = process.platform === 'win32'
+
+/** electron-builder's download cache, where makensis and 7-Zip live. */
+function cacheDir() {
+  if (process.env.ELECTRON_BUILDER_CACHE) return process.env.ELECTRON_BUILDER_CACHE
+  if (IS_WINDOWS) return path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'), 'electron-builder', 'Cache')
+  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'electron-builder')
+  return path.join(os.homedir(), '.cache', 'electron-builder')
+}
+const CACHE = cacheDir()
+
+/**
+ * Environment for the child processes that download things. Node's fetch —
+ * which electron-builder uses — ignores HTTP(S)_PROXY unless asked to, so
+ * behind a proxy the downloads would simply time out.
+ */
+function downloadEnv() {
+  const env = { ...process.env }
+  const proxied = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((k) => env[k])
+  if (proxied && env.NODE_USE_ENV_PROXY === undefined) env.NODE_USE_ENV_PROXY = '1'
+  return env
+}
+
+/**
+ * makensis, its plugins and 7-Zip come from electron-builder's own toolset
+ * downloads (checksum-verified). An NSIS target would fetch them; the --dir
+ * build this script uses does not, so fetch them here when they are missing.
+ */
+function ensureToolsets() {
+  const has = (dir) => fs.existsSync(path.join(CACHE, dir))
+  if (has('nsis-3.0.4.1') && has('nsis-resources-3.4.1') && has('7zip@1.0.0')) return
+  console.log('· downloading the NSIS and 7-Zip toolsets (once)…')
+  const script = `
+    const { getBinFromUrl } = require('app-builder-lib/out/binDownload')
+    const { getPath7za } = require('app-builder-lib/out/toolsets/7zip')
+    ;(async () => {
+      await getPath7za()
+      await getBinFromUrl('nsis-3.0.4.1', 'nsis-3.0.4.1.7z', '9877df902530f96357d13a7a31ae2b9df67f48b11ffc9a1700a7c961574ec5fa')
+      await getBinFromUrl('nsis-resources-3.4.1', 'nsis-resources-3.4.1.7z', '593a9a92ef958321293ac6a2ee61e64bf1bd543142a5bd6b3d310709cc924103')
+    })().catch((err) => { console.error(err.message); process.exit(1) })
+  `
+  execFileSync(process.execPath, ['-e', script], { cwd: ROOT, stdio: 'inherit', env: downloadEnv() })
+}
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 
@@ -48,12 +90,17 @@ function findFile(dir, matcher, limit = 8) {
 
 function locateMakensis() {
   if (process.env.MAKENSIS && fs.existsSync(process.env.MAKENSIS)) return process.env.MAKENSIS
-  const found = findFile(path.join(CACHE, 'nsis-3.0.4.1'), (name, full) => name === 'makensis' && full.includes('/linux/'))
+  const hostDir = { win32: null, darwin: 'mac', linux: 'linux' }[process.platform]
+  const found = findFile(path.join(CACHE, 'nsis-3.0.4.1'), (name, full) =>
+    IS_WINDOWS
+      ? name.toLowerCase() === 'makensis.exe'
+      : name === 'makensis' && path.basename(path.dirname(full)) === hostDir
+  )
   if (!found) {
     throw new Error(
       'Could not find makensis.\n' +
-        'It ships with electron-builder; run `npx electron-builder --win --dir` once,\n' +
-        'or point MAKENSIS at the binary yourself.'
+        'It is part of electron-builder\'s NSIS toolset, which could not be downloaded;\n' +
+        'check the network (or proxy) and retry, or point MAKENSIS at the binary yourself.'
     )
   }
   return found
@@ -134,7 +181,7 @@ function prepareNsisTree(nsisDir, pluginFiles) {
 
 function locate7za() {
   if (process.env.SEVEN_ZIP && fs.existsSync(process.env.SEVEN_ZIP)) return process.env.SEVEN_ZIP
-  const found = findFile(path.join(CACHE, '7zip@1.0.0'), (name) => name === '7za')
+  const found = findFile(path.join(CACHE, '7zip@1.0.0'), (name) => name === (IS_WINDOWS ? '7za.exe' : '7za'))
   if (!found) throw new Error('Could not find 7za in the electron-builder cache.')
   return found
 }
@@ -171,7 +218,8 @@ function ensureAppBuilt() {
   const appDir = path.join(RELEASE, 'win-unpacked')
   const asar = path.join(appDir, 'resources', 'app.asar')
   const builtAt = fs.existsSync(asar) ? fs.statSync(asar).mtimeMs : 0
-  const sourceAt = newestMtime(path.join(ROOT, 'out'))
+  // package.json counts too: a version bump alone must reach the app.
+  const sourceAt = Math.max(newestMtime(path.join(ROOT, 'out')), fs.statSync(path.join(ROOT, 'package.json')).mtimeMs)
 
   if (builtAt > 0 && builtAt >= sourceAt) {
     console.log('· the unpacked Windows app is up to date')
@@ -179,14 +227,50 @@ function ensureAppBuilt() {
   }
 
   console.log('· building the Windows app (electron-builder --dir)…')
-  execFileSync('npx', ['electron-builder', '--win', '--x64', '--dir'], {
+  // npx is a .cmd script on Windows, which Node only runs through a shell.
+  execFileSync(IS_WINDOWS ? 'npx.cmd' : 'npx', ['electron-builder', '--win', '--x64', '--dir'], {
     cwd: ROOT,
     stdio: 'inherit',
+    shell: IS_WINDOWS,
     env: {
-      ...process.env,
+      ...downloadEnv(),
       ELECTRON_MIRROR: process.env.ELECTRON_MIRROR ?? 'https://registry.npmmirror.com/-/binary/electron/'
     }
   })
+}
+
+/**
+ * Writes the uninstaller's file list: one Delete per installed file, then
+ * the folders deepest-first. RMDir without /r only removes a folder that is
+ * empty, so nothing the user put there is ever touched.
+ */
+function writeUninstallList(nsisTree) {
+  const appDir = path.join(RELEASE, 'win-unpacked')
+  const files = []
+  const dirs = []
+  const walk = (dir, rel) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const childRel = rel ? `${rel}\\${entry.name}` : entry.name
+      if (entry.isDirectory()) {
+        dirs.push(childRel)
+        walk(path.join(dir, entry.name), childRel)
+      } else {
+        files.push(childRel)
+      }
+    }
+  }
+  walk(appDir, '')
+  dirs.sort((a, b) => b.split('\\').length - a.split('\\').length)
+  const lines = [
+    '; Generated by scripts/build-installer.mjs — the files this build installs.',
+    ...files.map((f) => `  Delete "$INSTDIR\\${f}"`),
+    ...dirs.map((d) => `  RMDir "$INSTDIR\\${d}"`),
+    ''
+  ]
+  const out = path.join(nsisTree, 'uninstall-files.nsh')
+  // makensis reads include files in the system code page unless they carry a BOM.
+  fs.writeFileSync(out, '\ufeff' + lines.join('\r\n'), 'utf8')
+  return out
 }
 
 function makePayload(sevenZip) {
@@ -210,17 +294,19 @@ function main() {
   fs.mkdirSync(RELEASE, { recursive: true })
 
   ensureAppBuilt()
+  ensureToolsets()
 
   const makensis = locateMakensis()
   const pluginFiles = locatePlugins()
   const sevenZip = locate7za()
   const nsisTree = prepareNsisTree(nsisDirFor(makensis), pluginFiles)
+  const uninstallList = writeUninstallList(nsisTree)
   const payload = makePayload(sevenZip)
 
   const icon = path.join(BUILD, 'icon.ico')
   if (!fs.existsSync(icon)) {
     console.log('· generating the application icon…')
-    execFileSync('node', [path.join(__dirname, 'gen-icon.mjs')], { cwd: ROOT, stdio: 'inherit' })
+    execFileSync(process.execPath, [path.join(__dirname, 'gen-icon.mjs')], { cwd: ROOT, stdio: 'inherit' })
   }
 
   const outFile = path.join(RELEASE, `Storm-${pkg.version}-Setup.exe`)
@@ -235,7 +321,8 @@ function main() {
     `-DAPP_PUBLISHER=${pkg.author ?? 'Storm'}`,
     `-DOUT_FILE=${outFile}`,
     `-DAPP_7Z=${payload}`,
-    `-DAPP_ICON=${icon}`
+    `-DAPP_ICON=${icon}`,
+    `-DUNINSTALL_LIST=${uninstallList}`
   ]
 
   console.log('· compiling the installer with makensis…')
