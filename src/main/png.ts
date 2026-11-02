@@ -47,17 +47,3 @@ export function encodePng(width: number, height: number, rgba: Buffer): Buffer {
     chunk('IEND', Buffer.alloc(0))
   ])
 }
-
-export interface Rgb {
-  r: number
-  g: number
-  b: number
-}
-
-export function hexToRgb(hex: string): Rgb {
-  const clean = hex.replace('#', '')
-  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean
-  const num = parseInt(full, 16)
-  if (Number.isNaN(num)) return { r: 56, g: 189, b: 248 }
-  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }
-}

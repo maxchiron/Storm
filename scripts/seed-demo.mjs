@@ -3,7 +3,11 @@
  * install folders — handy for development and for checking the live
  * install-detection by deleting one of the folders.
  *
- *   node scripts/seed-demo.mjs
+ *   node scripts/seed-demo.mjs            # refuses to touch an existing library
+ *   node scripts/seed-demo.mjs --force    # replaces it (the old file is backed up)
+ *
+ * STORM_DATA_DIR points it at another folder; STORM_SEED_LANG=en seeds an
+ * English-language library.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -11,7 +15,15 @@ import os from 'node:os'
 import zlib from 'node:zlib'
 import { randomBytes } from 'node:crypto'
 
-const DATA_DIR = process.env.STORM_DATA_DIR || path.join(os.homedir(), '.config', 'storm')
+/** Electron's userData folder for an app named "storm", per platform. */
+function defaultDataDir() {
+  if (process.platform === 'win32') return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'storm')
+  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'storm')
+  return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'storm')
+}
+
+const DATA_DIR = process.env.STORM_DATA_DIR || defaultDataDir()
+const FORCE = process.argv.includes('--force')
 const COVERS = path.join(DATA_DIR, 'covers')
 const BANNERS = path.join(DATA_DIR, 'banners')
 const GAMES_DIR = path.join(DATA_DIR, 'demo-games')
@@ -314,6 +326,18 @@ const uuid = () => {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+const dbPath = path.join(DATA_DIR, 'library.json')
+if (fs.existsSync(dbPath)) {
+  if (!FORCE) {
+    console.error(`A library already exists at ${dbPath}.`)
+    console.error('Seeding would replace it. Run again with --force to do that anyway (a backup is kept).')
+    process.exit(1)
+  }
+  const backup = path.join(DATA_DIR, `library.before-seed-${Date.now()}.json`)
+  fs.copyFileSync(dbPath, backup)
+  console.log(`backed up the existing library to ${backup}`)
+}
+
 fs.mkdirSync(COVERS, { recursive: true })
 fs.mkdirSync(BANNERS, { recursive: true })
 fs.mkdirSync(GAMES_DIR, { recursive: true })
@@ -348,6 +372,7 @@ for (const [index, spec] of GAMES.entries()) {
     cover: coverName,
     banner: bannerName,
     exePath,
+    args: '',
     installPath,
     savePath,
     installed: spec.installed,
@@ -365,24 +390,18 @@ for (const [index, spec] of GAMES.entries()) {
   })
 }
 
-const dbPath = path.join(DATA_DIR, 'library.json')
 fs.writeFileSync(
   dbPath,
   JSON.stringify(
     {
-      version: 1,
+      version: 2,
       games,
+      // Only what differs from the defaults; Storm fills in the rest.
       settings: {
-        language: 'zh',
-        theme: 'storm',
-        accent: '#38bdf8',
-        posterSize: 'md',
-        scanIntervalSeconds: 10,
-        minimizeToTray: true,
-        confirmBeforeDelete: true,
-        reduceMotion: false
+        language: process.env.STORM_SEED_LANG === 'en' ? 'en' : 'zh'
       },
-      sessions: []
+      sessions: [],
+      screenshots: []
     },
     null,
     2

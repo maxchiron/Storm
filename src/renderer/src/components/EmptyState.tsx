@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useStorm, useT } from '../store/useStorm'
 import { EASE } from '../motion'
-import { EyeOffIcon, PlusIcon, SearchIcon, SparkIcon } from './icons'
+import { DropIcon, EyeOffIcon, PlusIcon, SearchIcon, SparkIcon } from './icons'
 
 interface Props {
   variant: 'empty' | 'no-match' | 'hidden' | 'hidden-only'
@@ -91,8 +91,14 @@ export default function EmptyState({ variant }: Props): React.JSX.Element {
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.97 }}
         >
-          {t('action.recheck')}
+          {t('action.clearFilters')}
         </motion.button>
+      )}
+      {isEmpty && (
+        <p className="empty-drop">
+          <DropIcon size={15} />
+          {t('empty.dropHint')}
+        </p>
       )}
     </motion.div>
   )

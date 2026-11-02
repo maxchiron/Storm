@@ -8,6 +8,20 @@
   z-index: 60;
   display: flex;
   flex-direction: column;
+  background: var(--bg-0);
+
+  /* The backdrop is the game's own art; the scrim keeps text readable on it.
+     Dark mode dims the art, light mode frosts it. */
+  --scrim-top: rgba(4, 6, 12, 0.84);
+  --scrim-mid: rgba(4, 6, 12, 0.32);
+  --scrim-bottom: rgba(4, 6, 12, 0.82);
+  --scrim-edge: rgba(4, 6, 12, 0.6);
+}
+:root[data-mode='light'] .detail-overlay {
+  --scrim-top: color-mix(in srgb, var(--bg-2) 90%, transparent);
+  --scrim-mid: color-mix(in srgb, var(--bg-2) 58%, transparent);
+  --scrim-bottom: color-mix(in srgb, var(--bg-1) 94%, transparent);
+  --scrim-edge: color-mix(in srgb, var(--bg-1) 72%, transparent);
 }
 
 .detail-backdrop {
@@ -34,14 +48,17 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(4, 6, 12, 0.82) 0%, rgba(4, 6, 12, 0.3) 34%, rgba(4, 6, 12, 0.8) 100%),
-    radial-gradient(105% 85% at 22% 22%, rgba(4, 6, 12, 0) 0%, rgba(4, 6, 12, 0.6) 78%);
+    linear-gradient(180deg, var(--scrim-top) 0%, var(--scrim-mid) 34%, var(--scrim-bottom) 100%),
+    radial-gradient(105% 85% at 22% 22%, transparent 0%, var(--scrim-edge) 78%);
 }
 
+/* The top band stays free for the window controls (and dragging the window,
+   through the title bar underneath). */
 .detail-scroll {
   position: relative;
   flex: 1;
   min-height: 0;
+  margin-top: var(--titlebar-h);
   overflow-y: auto;
   padding: 0 40px 56px;
 }
@@ -56,7 +73,7 @@
   height: 60px;
   margin: 0 -40px;
   padding: 0 40px;
-  background: linear-gradient(180deg, rgba(4, 6, 12, 0.85), rgba(4, 6, 12, 0));
+  background: linear-gradient(180deg, var(--scrim-top), transparent);
 }
 
 /* The app shell underneath this full-screen overlay marks the sidebar brand
@@ -78,14 +95,14 @@
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-1);
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--icon-btn);
   border: 1px solid var(--stroke);
   backdrop-filter: blur(12px);
   transition: color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
 .detail-back:hover {
   color: var(--text-0);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-2);
 }
 .detail-back-icon {
   transform: rotate(180deg);
@@ -142,6 +159,9 @@
   line-height: 1.1;
   letter-spacing: -0.02em;
   text-shadow: 0 6px 26px rgba(0, 0, 0, 0.5);
+}
+:root[data-mode='light'] .detail-title {
+  text-shadow: 0 4px 22px rgba(255, 255, 255, 0.6);
 }
 
 .detail-actions {
@@ -216,6 +236,91 @@
   font-size: 12px;
   color: var(--text-2);
 }
+.panel-hint--flush {
+  margin-top: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.panel-head .panel-title {
+  margin-bottom: 0;
+}
+.panel-head .btn--soft {
+  height: 30px;
+}
+.panel-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  letter-spacing: 0;
+  color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.14);
+}
+
+/* ------------------------------------------------- screenshot gallery */
+
+.panel--shots {
+  min-height: 64px;
+}
+
+.shot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.shot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  padding: 0;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  transition:
+    border-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+.shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.6s var(--ease);
+}
+.shot:hover {
+  border-color: rgba(var(--accent-rgb), 0.45);
+  box-shadow: var(--shadow-2), 0 0 0 1px rgba(var(--accent-rgb), 0.2);
+  transform: translateY(-2px);
+}
+.shot:hover img {
+  transform: scale(1.05);
+}
+.shot-more {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(4, 6, 12, 0.62);
+  backdrop-filter: blur(3px);
+}
 
 .path-list {
   display: flex;
@@ -251,7 +356,7 @@
   min-width: 0;
   font-size: 12.5px;
   color: var(--text-1);
-  font-family: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  font-family: var(--mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -263,7 +368,8 @@
   opacity: 0;
   transition: opacity var(--dur-1) var(--ease);
 }
-.path-row:hover .path-actions {
+.path-row:hover .path-actions,
+.path-row:focus-within .path-actions {
   opacity: 1;
 }
 

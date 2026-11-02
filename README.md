@@ -3,8 +3,10 @@
 A local game library manager for Windows 10 — a Steam-style poster wall that
 remembers every game you own, where it lives, and how long you played it.
 
-Everything stays on your machine. There is no account, no sync, and no network
-call: your library is a single JSON file next to your posters.
+Everything stays on your machine. There is no account, no sync and no
+telemetry: your library is a single JSON file next to your posters. The only
+time Storm touches the network is when you drop a picture straight out of a
+web page onto it — then it downloads that one image.
 
 ![Stack](https://img.shields.io/badge/Electron-45-47848F?logo=electron&logoColor=white)
 ![Stack](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
@@ -34,6 +36,24 @@ path, install location, save location, tags and notes.
 completely — no poster, no count, no mention in search. When you are on your
 own, open the private shelf to find it again and bring it back.
 
+**Drag it in.** Drop a game's `.exe` or its desktop shortcut onto the window
+and Storm fills in the title (from the shortcut name, the executable's
+version info or its folder), the install folder and the launch options. Drop
+a whole handful of shortcuts and they are all added at once. Posters work the
+same way: drop an image file, drag a picture out of your browser, or copy it
+and press **Ctrl+V** in the add-game form. **Find a poster online** under the poster opens a
+SteamGridDB search for the game in your browser — drag the one you like back in.
+
+**Screenshots, keyboard or controller.** Press **F12** — or **L3 + R3** on a
+controller — while a game launched from Storm is running. The screen is saved
+to `Pictures\Storm\<Game>\`, a small card confirms it without taking focus
+from the game, and the game's page shows a gallery. Both shortcuts can be
+changed (or recorded straight from your controller) in Settings.
+
+**Themes.** Six themes — Storm, Aurora, Nebula, Synthwave, Ember, Obsidian —
+each in a dark and a light version, or following Windows. Pick any accent on
+top, including a custom colour.
+
 **Bilingual.** English and Simplified Chinese, switchable in Settings.
 
 ---
@@ -45,12 +65,15 @@ own, open the private shelf to find it again and bring it back.
 | **Poster wall** | Responsive grid, per-game hover animations, staggered entrance, shared-element transition into the detail page |
 | **Live install detection** | `fs.watch` on the parent folder plus a polling safety net — the badge updates the moment you delete a game |
 | **Playtime tracking** | Process tracking with a Windows fallback for launchers that spawn and exit immediately |
-| **Add / edit / delete** | Native file pickers for `.exe`, install folder and save folder; posters and wallpapers are copied into the library |
+| **Add / edit / delete** | Native file pickers for `.exe`, install folder and save folder; launch options; posters and wallpapers are copied into the library |
 | **Filters & search** | All · Installed · Not installed · Played · Unplayed · Favorites, with live search across title, tags and notes |
 | **Hidden games** | A private shelf: hidden games leave the wall, the counts and the search results, and only come back when you unhide them |
 | **Sorting** | Title, date added, last played, playtime, sessions |
 | **Detail page** | Wallpaper backdrop, path rows with reveal-in-folder and copy, tags, notes, install status |
-| **Settings** | Language, accent colour, poster size, tray behaviour, detection interval, motion reduction, JSON import/export |
+| **Drag & paste** | Drop `.exe` / `.lnk` files to add games (several at once), drop or paste images for posters and wallpapers |
+| **Screenshots** | Global hotkey and controller combo, per-game folders, in-game "saved" card, shutter sound, gallery on the detail page |
+| **Themes** | Six themes in dark and light, "follow Windows", accent swatches plus a custom colour |
+| **Settings** | Language, theme, accent, poster size, screenshot shortcuts, tray behaviour, detection interval, motion reduction, JSON import/export |
 | **System tray** | Minimise to tray, live accent-coloured icon, quick access |
 
 ---
@@ -69,8 +92,8 @@ npm run icon         # regenerate build/icon.ico
 ### Building the Windows installer
 
 ```bash
-npm run dist         # -> release/Storm-1.0.0-Setup.exe  (installer)
-npm run dist:zip     # -> release/Storm-1.0.0-Setup.zip  (portable folder)
+npm run dist         # -> release/Storm-<version>-Setup.exe  (installer)
+npm run dist:zip     # -> release/Storm-<version>-Setup.zip  (portable folder)
 npm run dist:app     # -> release/win-unpacked/          (unpacked app)
 ```
 
@@ -96,6 +119,7 @@ STORM_VIEW=game STORM_VIEW_ARG="Elden Ring"   # open a game's detail page
 STORM_VIEW=form                               # open the add-game form
 STORM_VIEW=settings                           # open settings
 STORM_VIEW=launch STORM_VIEW_ARG="Elden Ring" # launch a game
+STORM_VIEW=drop STORM_VIEW_ARG="D:\a.exe|D:\b.lnk" # as if those files were dropped
 STORM_SCREENSHOT=/tmp/shot.png                # capture the window, then exit
 ```
 
@@ -112,15 +136,23 @@ Everything lives in Electron's user-data folder:
 %APPDATA%/storm/
 ├── library.json      # your games, settings and play history
 ├── covers/           # poster images
-└── banners/          # wallpaper images
+├── banners/          # wallpaper images
+└── thumbs/           # previews of your screenshots (the screenshots
+                      #   themselves are in Pictures\Storm)
 ```
 
 - `library.json` is written atomically (temp file + rename), so a crash can
-  never leave you with a half-written library.
+  never leave you with a half-written library. If the file is ever damaged,
+  Storm moves it aside as `library.corrupt-<date>.json` instead of
+  overwriting it, and tells you where it is.
 - Posters and wallpapers are **copied** into Storm. Moving or deleting the
   original file will not break anything.
-- **Settings → Export** writes a portable JSON copy you can keep or move to
-  another machine; **Import** restores one.
+- **Settings → Export** writes a portable JSON copy (games, settings and play
+  history) you can keep or move to another machine; **Import** restores one
+  after asking for confirmation. Artwork is not part of the export — games
+  whose posters are not on the new machine show a placeholder.
+- The uninstaller removes exactly the files it installed and leaves your
+  library alone.
 
 ---
 
@@ -150,7 +182,12 @@ src/
 │   ├── store.ts     JSON persistence (atomic writes)
 │   ├── watcher.ts   live install-folder detection
 │   ├── launcher.ts  process launching + playtime tracking
-│   ├── media.ts     poster / wallpaper import and serving
+│   ├── media.ts     poster / wallpaper import (file, bytes, URL) and serving
+│   ├── gamefile.ts  what a dropped .exe / .lnk is: title, folder, arguments
+│   ├── pe.ts        reads version info (ProductName…) from executables
+│   ├── lnk.ts       reads Windows shortcut files
+│   ├── screenshot.ts screenshot hotkey, capture and gallery
+│   ├── normalize.ts validation of everything read from disk or the renderer
 │   ├── tray.ts      system-tray icon and menu
 │   ├── png.ts       tiny PNG encoder for the app & tray icons
 │   └── icons.ts     runtime-generated bolt icon
@@ -169,7 +206,7 @@ src/
 | Scheme | Serves | Why |
 |---|---|---|
 | `app://storm/` | the built renderer | A real origin, so the production CSP can be strict (`script-src 'self'`) and ES modules load without `file://` restrictions. |
-| `storm://asset/` | posters and wallpapers | The renderer can read Storm's media folders and nothing else — path traversal is rejected. |
+| `storm://asset/` | posters, wallpapers, screenshot previews | The renderer can read Storm's media folders and nothing else — path traversal is rejected. |
 
 The packaged app runs with `sandbox: true`, `contextIsolation: true` and
 `nodeIntegration: false`, behind a strict Content-Security-Policy.

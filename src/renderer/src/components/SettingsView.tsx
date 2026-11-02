@@ -2,10 +2,23 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useStorm, useT } from '../store/useStorm'
 import { ACCENTS, POSTER_SIZES } from '@shared/types'
-import type { AppSettings, Language, PosterSize, ThemeName } from '@shared/types'
+import { THEMES } from '@shared/themes'
+import type { AppearanceMode, AppSettings, Language, ScreenshotFormat } from '@shared/types'
 import type { TranslationKey } from '@shared/i18n'
+import { accentTokens, resolveMode } from '../utils/theme'
 import { fadeUp, SPRING_SOFT } from '../motion'
-import { CheckIcon, ExternalIcon, FolderIcon, RefreshIcon, SparkIcon } from './icons'
+import { HotkeyField, PadComboField } from './ShortcutFields'
+import {
+  CameraIcon,
+  CheckIcon,
+  ExternalIcon,
+  FolderIcon,
+  MonitorIcon,
+  MoonIcon,
+  RefreshIcon,
+  SparkIcon,
+  SunIcon
+} from './icons'
 
 function Toggle({
   checked,
@@ -19,7 +32,12 @@ function Toggle({
   hint?: string
 }): React.JSX.Element {
   return (
-    <button type="button" className={`toggle${checked ? ' is-on' : ''}`} onClick={() => onChange(!checked)}>
+    <button
+      type="button"
+      className={`toggle${checked ? ' is-on' : ''}`}
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+    >
       <span className="toggle-track">
         <motion.span className="toggle-thumb" layout transition={SPRING_SOFT} />
       </span>
@@ -31,21 +49,86 @@ function Toggle({
   )
 }
 
+function Segmented<T extends string | number>({
+  id,
+  value,
+  options,
+  onChange
+}: {
+  id: string
+  value: T
+  options: { value: T; label: string; icon?: React.JSX.Element }[]
+  onChange: (value: T) => void
+}): React.JSX.Element {
+  return (
+    <div className="segmented" role="radiogroup">
+      {options.map((option) => (
+        <button
+          key={String(option.value)}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className={`segment${value === option.value ? ' is-active' : ''}`}
+          onClick={() => onChange(option.value)}
+        >
+          {value === option.value && (
+            <motion.span className="segment-bg" layoutId={`segment-${id}`} transition={SPRING_SOFT} />
+          )}
+          <span className="segment-label">
+            {option.icon}
+            {option.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function Row({
+  label,
+  hint,
+  children
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div className="settings-row">
+      <span className="toggle-text">
+        <span className="toggle-label">{label}</span>
+        {hint && <span className="toggle-hint">{hint}</span>}
+      </span>
+      <div className="settings-row-control">{children}</div>
+    </div>
+  )
+}
+
 export default function SettingsView(): React.JSX.Element {
   const settings = useStorm((s) => s.settings)
   const update = useStorm((s) => s.updateSettings)
   const dataDir = useStorm((s) => s.dataDir)
+  const hotkey = useStorm((s) => s.hotkey)
   const toast = useStorm((s) => s.toast)
+  const openFolder = useStorm((s) => s.openFolder)
   const t = useT()
   const [version, setVersion] = useState('')
+  const [, setSystemTick] = useState(0)
 
   useEffect(() => {
     void window.storm.appVersion().then(setVersion)
   }, [])
 
-  const patch = (value: Partial<AppSettings>): void => {
-    void window.storm.updateSettings(value).then((next) => useStorm.getState().setSettings(next))
-  }
+  // The theme tiles preview the scheme actually on screen, "System" included.
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (): void => setSystemTick((n) => n + 1)
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
+  }, [])
+  const mode = resolveMode(settings.appearance)
+
+  const patch = (value: Partial<AppSettings>): void => void update(value)
 
   const doExport = async (): Promise<void> => {
     const path = await window.storm.exportLibrary()
@@ -53,89 +136,212 @@ export default function SettingsView(): React.JSX.Element {
   }
 
   const doImport = async (): Promise<void> => {
-    const snapshot = await window.storm.importLibrary()
-    if (snapshot) {
-      useStorm.getState().setGames(snapshot.games)
-      useStorm.getState().setSettings(snapshot.settings)
-      toast(t('toast.imported'), 'success')
+    try {
+      const snapshot = await window.storm.importLibrary()
+      if (snapshot) toast(t('toast.imported'), 'success')
+    } catch {
+      toast(t('toast.importFailed'), 'error')
     }
   }
+
+  const testShot = async (): Promise<void> => {
+    const result = await window.storm.takeScreenshot()
+    if (!result.ok && result.error !== 'BUSY') toast(t('toast.shotFailed'), 'error')
+  }
+
+  const isPreset = ACCENTS.some((a) => a.color === settings.accent)
 
   return (
     <div className="settings">
       <motion.div className="settings-inner" variants={fadeUp} initial="hidden" animate="show">
         <section className="panel settings-panel">
-          <h3 className="panel-title">{t('settings.language')}</h3>
-          <div className="segmented">
-            {(['zh', 'en'] as Language[]).map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                className={`segment${settings.language === lang ? ' is-active' : ''}`}
-                onClick={() => patch({ language: lang })}
-              >
-                {settings.language === lang && (
-                  <motion.span className="segment-bg" layoutId="segment-lang" transition={SPRING_SOFT} />
-                )}
-                <span className="segment-label">{lang === 'zh' ? '简体中文' : 'English'}</span>
-              </button>
-            ))}
+          <h3 className="panel-title">{t('settings.appearance')}</h3>
+
+          <Row label={t('settings.mode')}>
+            <Segmented<AppearanceMode>
+              id="mode"
+              value={settings.appearance}
+              onChange={(appearance) => patch({ appearance })}
+              options={[
+                { value: 'dark', label: t('mode.dark'), icon: <MoonIcon size={14} /> },
+                { value: 'light', label: t('mode.light'), icon: <SunIcon size={14} /> },
+                { value: 'system', label: t('mode.system'), icon: <MonitorIcon size={14} /> }
+              ]}
+            />
+          </Row>
+
+          <div className="settings-block">
+            <span className="toggle-label">{t('settings.theme')}</span>
+            <div className="theme-grid">
+              {THEMES.map((theme) => {
+                const palette = mode === 'light' ? theme.light : theme.dark
+                const accent = accentTokens(theme.accent, mode, palette.bg[1]).accent
+                const active = settings.theme === theme.id
+                return (
+                  <motion.button
+                    key={theme.id}
+                    type="button"
+                    className={`theme-tile${active ? ' is-active' : ''}`}
+                    onClick={() => patch({ theme: theme.id, accent: theme.accent })}
+                    whileHover={{ y: -3 }}
+                    whileTap={{ scale: 0.97 }}
+                    style={
+                      {
+                        '--tile-bg0': palette.bg[0],
+                        '--tile-bg1': palette.bg[1],
+                        '--tile-bg2': palette.bg[2],
+                        '--tile-g1': palette.glow[0],
+                        '--tile-g2': palette.glow[1],
+                        '--tile-accent': accent
+                      } as React.CSSProperties
+                    }
+                  >
+                    <span className={`theme-preview theme-preview--${mode}`}>
+                      <span className="tp-glow" />
+                      <span className="tp-side">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                      <span className="tp-wall">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                      <span className="tp-button" />
+                    </span>
+                    <span className="theme-name">
+                      {t(`theme.${theme.id}` as TranslationKey)}
+                      {active && <CheckIcon size={13} />}
+                    </span>
+                  </motion.button>
+                )
+              })}
+            </div>
           </div>
+
+          <Row label={t('settings.accent')}>
+            <div className="swatches">
+              {ACCENTS.map((accent) => (
+                <button
+                  key={accent.id}
+                  type="button"
+                  className={`swatch${settings.accent === accent.color ? ' is-active' : ''}`}
+                  style={{ '--swatch': accent.color } as React.CSSProperties}
+                  title={accent.label}
+                  aria-label={accent.label}
+                  onClick={() => patch({ accent: accent.color })}
+                >
+                  {settings.accent === accent.color && <CheckIcon size={14} />}
+                </button>
+              ))}
+              <label
+                className={`swatch swatch--custom${isPreset ? '' : ' is-active'}`}
+                title={t('settings.customAccent')}
+                style={{ '--swatch': settings.accent } as React.CSSProperties}
+              >
+                <input
+                  type="color"
+                  value={settings.accent}
+                  aria-label={t('settings.customAccent')}
+                  onChange={(e) => patch({ accent: e.target.value })}
+                />
+                {!isPreset && <CheckIcon size={14} />}
+              </label>
+            </div>
+          </Row>
+
+          <Row label={t('settings.posterSize')}>
+            <Segmented
+              id="poster"
+              value={settings.posterSize}
+              onChange={(posterSize) => patch({ posterSize })}
+              options={POSTER_SIZES.map((size) => ({ value: size, label: size.toUpperCase() }))}
+            />
+          </Row>
+
+          <Row label={t('settings.language')}>
+            <Segmented<Language>
+              id="lang"
+              value={settings.language}
+              onChange={(language) => patch({ language })}
+              options={[
+                { value: 'zh', label: '简体中文' },
+                { value: 'en', label: 'English' }
+              ]}
+            />
+          </Row>
         </section>
 
         <section className="panel settings-panel">
-          <h3 className="panel-title">{t('settings.theme')}</h3>
-          <div className="segmented">
-            {(['storm', 'midnight', 'obsidian'] as ThemeName[]).map((theme) => (
-              <button
-                key={theme}
-                type="button"
-                className={`segment${settings.theme === theme ? ' is-active' : ''}`}
-                onClick={() => patch({ theme })}
-              >
-                {settings.theme === theme && (
-                  <motion.span className="segment-bg" layoutId="segment-theme" transition={SPRING_SOFT} />
-                )}
-                <span className="segment-label">{t(`theme.${theme}` as TranslationKey)}</span>
-              </button>
-            ))}
+          <div className="panel-head">
+            <h3 className="panel-title">{t('settings.screenshots')}</h3>
+            <button type="button" className="btn btn--soft" onClick={() => void testShot()}>
+              <CameraIcon size={14} />
+              {t('settings.testShot')}
+            </button>
           </div>
-        </section>
-
-        <section className="panel settings-panel">
-          <h3 className="panel-title">{t('settings.accent')}</h3>
-          <div className="swatches">
-            {ACCENTS.map((accent) => (
-              <button
-                key={accent.id}
-                type="button"
-                className={`swatch${settings.accent === accent.color ? ' is-active' : ''}`}
-                style={{ '--swatch': accent.color } as React.CSSProperties}
-                title={accent.label}
-                onClick={() => patch({ accent: accent.color })}
-              >
-                {settings.accent === accent.color && <CheckIcon size={14} />}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="panel settings-panel">
-          <h3 className="panel-title">{t('settings.posterSize')}</h3>
-          <div className="segmented">
-            {POSTER_SIZES.map((size: PosterSize) => (
-              <button
-                key={size}
-                type="button"
-                className={`segment${settings.posterSize === size ? ' is-active' : ''}`}
-                onClick={() => patch({ posterSize: size })}
-              >
-                {settings.posterSize === size && (
-                  <motion.span className="segment-bg" layoutId="segment-poster" transition={SPRING_SOFT} />
-                )}
-                <span className="segment-label">{size.toUpperCase()}</span>
-              </button>
-            ))}
+          <div className="settings-rows">
+            <HotkeyField
+              value={settings.screenshotHotkey}
+              state={hotkey}
+              onChange={(screenshotHotkey) => patch({ screenshotHotkey })}
+            />
+            <PadComboField
+              value={settings.screenshotPadCombo}
+              onChange={(screenshotPadCombo) => patch({ screenshotPadCombo })}
+            />
+            <Toggle
+              checked={settings.screenshotOnlyWhilePlaying}
+              onChange={(v) => patch({ screenshotOnlyWhilePlaying: v })}
+              label={t('settings.onlyWhilePlaying')}
+              hint={t('settings.onlyWhilePlayingHint')}
+            />
+            <Row label={t('settings.shotFolder')}>
+              <div className="path-inline">
+                <span className="path-inline-value" title={settings.screenshotDir}>
+                  {settings.screenshotDir || 'Pictures\\Storm'}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--soft"
+                  onClick={() =>
+                    void window.storm.pickScreenshotDir().then((dir) => dir && patch({ screenshotDir: dir }))
+                  }
+                >
+                  {t('action.browse')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--soft btn--icon"
+                  title={t('action.openScreenshots')}
+                  onClick={() => void openFolder('screenshots')}
+                >
+                  <FolderIcon size={15} />
+                </button>
+              </div>
+            </Row>
+            <Row label={t('settings.shotFormat')}>
+              <Segmented<ScreenshotFormat>
+                id="shot-format"
+                value={settings.screenshotFormat}
+                onChange={(screenshotFormat) => patch({ screenshotFormat })}
+                options={[
+                  { value: 'png', label: t('settings.shotFormatPng') },
+                  { value: 'jpg', label: t('settings.shotFormatJpg') }
+                ]}
+              />
+            </Row>
+            <Toggle
+              checked={settings.screenshotSound}
+              onChange={(v) => patch({ screenshotSound: v })}
+              label={t('settings.shotSound')}
+            />
+            <Toggle
+              checked={settings.screenshotNotify}
+              onChange={(v) => patch({ screenshotNotify: v })}
+              label={t('settings.shotNotify')}
+            />
           </div>
         </section>
 
@@ -146,6 +352,7 @@ export default function SettingsView(): React.JSX.Element {
               checked={settings.minimizeToTray}
               onChange={(v) => patch({ minimizeToTray: v })}
               label={t('settings.minimizeToTray')}
+              hint={t('settings.minimizeToTrayHint')}
             />
             <Toggle
               checked={settings.confirmBeforeDelete}
@@ -157,19 +364,14 @@ export default function SettingsView(): React.JSX.Element {
               onChange={(v) => patch({ reduceMotion: v })}
               label={t('settings.reduceMotion')}
             />
-            <label className="field field--inline">
-              <span className="field-label">{t('settings.scanInterval')}</span>
-              <select
-                className="input input--select"
+            <Row label={t('settings.scanInterval')}>
+              <Segmented<number>
+                id="scan"
                 value={settings.scanIntervalSeconds}
-                onChange={(e) => patch({ scanIntervalSeconds: Number(e.target.value) })}
-              >
-                <option value={5}>5s</option>
-                <option value={10}>10s</option>
-                <option value={30}>30s</option>
-                <option value={60}>60s</option>
-              </select>
-            </label>
+                onChange={(scanIntervalSeconds) => patch({ scanIntervalSeconds })}
+                options={[5, 10, 30, 60].map((s) => ({ value: s, label: `${s}s` }))}
+              />
+            </Row>
           </div>
         </section>
 
@@ -181,9 +383,9 @@ export default function SettingsView(): React.JSX.Element {
             </span>
             <button
               type="button"
-              className="btn btn--soft"
+              className="btn btn--soft btn--icon"
               title={t('action.openData')}
-              onClick={() => void window.storm.openFolder('data')}
+              onClick={() => void openFolder('data')}
             >
               <FolderIcon size={15} />
             </button>
@@ -213,8 +415,7 @@ export default function SettingsView(): React.JSX.Element {
               type="button"
               className="btn btn--ghost"
               onClick={() => {
-                void window.storm.recheck()
-                toast(t('toast.rechecked'), 'info')
+                void window.storm.recheck().then(() => toast(t('toast.rechecked'), 'info'))
               }}
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.97 }}
@@ -227,7 +428,7 @@ export default function SettingsView(): React.JSX.Element {
 
         <section className="panel settings-panel">
           <h3 className="panel-title">{t('settings.about')}</h3>
-          <p className="panel-hint">{t('settings.aboutText')}</p>
+          <p className="panel-hint panel-hint--flush">{t('settings.aboutText')}</p>
           <p className="panel-hint">
             {t('common.version')} {version}
           </p>

@@ -13,11 +13,12 @@ export default function PosterWall(): React.JSX.Element {
   const sort = useStorm((s) => s.sort)
   const query = useStorm((s) => s.query)
   const setFilter = useStorm((s) => s.setFilter)
+  const language = useStorm((s) => s.settings.language)
   const t = useT()
 
   const visible = useMemo(
-    () => applySort(applyFilter(games, filter, query), sort),
-    [games, filter, query, sort]
+    () => applySort(applyFilter(games, filter, query), sort, language),
+    [games, filter, query, sort, language]
   )
   const hiddenCount = useMemo(() => games.filter((g) => g.hidden).length, [games])
   const privateView = filter === 'hidden'

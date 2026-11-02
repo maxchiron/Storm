@@ -1,15 +1,29 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useStorm, useT } from '../store/useStorm'
-import { bannerSrc, coverSrc, hueFromString, initials } from '../utils/format'
-import { EASE, SPRING_SOFT } from '../motion'
-import { CheckIcon, CloseIcon, FolderIcon, ImageIcon, PencilIcon, PlusIcon } from './icons'
+import { samePath, useStorm, useT } from '../store/useStorm'
+import type { Game, GameDraft, GameFileResult, MediaKind, MediaResult } from '@shared/types'
+import { baseName } from '../utils/format'
+import {
+  acceptDrag,
+  dragHasFiles,
+  dragLooksLikeImage,
+  gamePaths,
+  hasImage,
+  imageUrl,
+  importImageFromSnapshot,
+  snapshotTransfer,
+  type TransferSnapshot
+} from '../utils/transfer'
+import { SPRING_SOFT } from '../motion'
+import MediaSlot from './MediaSlot'
+import { BoltIcon, CheckIcon, CloseIcon, ExternalIcon, FolderIcon, PencilIcon, PlusIcon, SearchIcon } from './icons'
 
 interface FormState {
   title: string
   cover: string | null
   banner: string | null
   exePath: string
+  args: string
   installPath: string
   savePath: string
   tags: string
@@ -24,6 +38,7 @@ const EMPTY: FormState = {
   cover: null,
   banner: null,
   exePath: '',
+  args: '',
   installPath: '',
   savePath: '',
   tags: '',
@@ -33,74 +48,239 @@ const EMPTY: FormState = {
   hidden: false
 }
 
-function dirnameOf(p: string): string {
-  const idx = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'))
-  return idx > 0 ? p.slice(0, idx) : p
+function fromGame(game: Game): FormState {
+  return {
+    title: game.title,
+    cover: game.cover,
+    banner: game.banner,
+    exePath: game.exePath ?? '',
+    args: game.args,
+    installPath: game.installPath ?? '',
+    savePath: game.savePath ?? '',
+    tags: game.tags.join(', '),
+    note: game.note,
+    played: game.played,
+    favorite: game.favorite,
+    hidden: game.hidden
+  }
+}
+
+/** Tags are separated by commas — including the full-width ones a Chinese IME types. */
+function parseTags(value: string): string[] {
+  const seen = new Set<string>()
+  return value
+    .split(/[,，、;；]/)
+    .map((tag) => tag.trim())
+    .filter((tag) => {
+      const key = tag.toLowerCase()
+      if (!tag || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 export default function GameForm(): React.JSX.Element {
   const formOpen = useStorm((s) => s.formOpen)
   const editingId = useStorm((s) => s.editingId)
-  const games = useStorm((s) => s.games)
+  const formSeed = useStorm((s) => s.formSeed)
+  const editingExists = useStorm((s) => !s.editingId || s.games.some((g) => g.id === s.editingId))
   const closeForm = useStorm((s) => s.closeForm)
   const toast = useStorm((s) => s.toast)
+  const mediaResult = useStorm((s) => s.mediaResult)
   const t = useT()
 
-  const editing = useMemo(() => games.find((g) => g.id === editingId) ?? null, [games, editingId])
   const [form, setForm] = useState<FormState>(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [busy, setBusy] = useState<MediaKind | null>(null)
+  const [filledFrom, setFilledFrom] = useState<string | null>(null)
+  const [dropActive, setDropActive] = useState(false)
+  const titleRef = useRef<HTMLInputElement>(null)
+  /** Images imported while the form was open; the unused ones are deleted on close. */
+  const imported = useRef<Record<MediaKind, string[]>>({ covers: [], banners: [] })
+  /** The title came from a dropped file and has not been typed over since. */
+  const autoTitle = useRef(false)
+  const dropTimer = useRef<number | null>(null)
+  const editing = editingId !== null
 
+  // Fill the form when it opens (or switches to another game) — and only
+  // then. It used to refill on every library update, so a session ending or
+  // an install-status change in the background wiped what you were typing.
   useEffect(() => {
     if (!formOpen) return
-    setForm(
-      editing
-        ? {
-            title: editing.title,
-            cover: editing.cover,
-            banner: editing.banner,
-            exePath: editing.exePath ?? '',
-            installPath: editing.installPath ?? '',
-            savePath: editing.savePath ?? '',
-            tags: editing.tags.join(', '),
-            note: editing.note,
-            played: editing.played,
-            favorite: editing.favorite,
-            hidden: editing.hidden
-          }
-        : { ...EMPTY }
-    )
-  }, [formOpen, editing])
-
-  useEffect(() => {
-    if (!formOpen) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') closeForm()
+    const state = useStorm.getState()
+    const game = state.editingId ? state.games.find((g) => g.id === state.editingId) : undefined
+    imported.current = { covers: [], banners: [] }
+    autoTitle.current = false
+    setFilledFrom(null)
+    setBusy(null)
+    if (game) {
+      setForm(fromGame(game))
+      return
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [formOpen, closeForm])
+    let next: FormState = { ...EMPTY }
+    const seed = state.formSeed
+    if (seed?.draft) {
+      next = applyDraft(next, seed.draft, true)
+      autoTitle.current = true
+      setFilledFrom(baseName(seed.draft.source))
+    }
+    if (seed?.cover) {
+      next.cover = seed.cover
+      imported.current.covers.push(seed.cover)
+    }
+    setForm(next)
+  }, [formOpen, editingId, formSeed])
 
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]): void =>
-    setForm((f) => ({ ...f, [key]: value }))
+  // The game being edited was deleted (from the tray, another window…).
+  useEffect(() => {
+    if (formOpen && !editingExists) closeForm()
+  }, [formOpen, editingExists, closeForm])
 
-  const pickCover = async (): Promise<void> => {
-    const name = await window.storm.pickImage('covers')
-    if (name) set('cover', name)
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]): void => setForm((f) => ({ ...f, [key]: value }))
+
+  function applyDraft(current: FormState, draft: GameDraft, takeTitle: boolean): FormState {
+    return {
+      ...current,
+      title: takeTitle || !current.title.trim() ? draft.title : current.title,
+      exePath: draft.exePath,
+      args: draft.args,
+      installPath: draft.installPath || current.installPath
+    }
   }
 
-  const pickBanner = async (): Promise<void> => {
-    const name = await window.storm.pickImage('banners')
-    if (name) set('banner', name)
+  const applyGameFile = (result: GameFileResult | undefined): void => {
+    if (!result) return
+    if (!result.ok) {
+      const key =
+        result.error === 'BROKEN_SHORTCUT'
+          ? 'toast.brokenShortcut'
+          : result.error === 'NOT_FOUND'
+            ? 'toast.exeNotFound'
+            : 'toast.notGameFile'
+      toast(t(key), 'error')
+      return
+    }
+    const { draft } = result
+    const duplicate = useStorm.getState().games.find((g) => g.id !== editingId && samePath(g.exePath, draft.exePath))
+    if (duplicate) toast(t('toast.gameExists', { title: duplicate.title }), 'info')
+    const takeTitle = !editing && autoTitle.current
+    setForm((f) => {
+      const next = applyDraft(f, draft, takeTitle)
+      if (next.title === draft.title && !editing) autoTitle.current = true
+      return next
+    })
+    setFilledFrom(baseName(draft.source))
+  }
+
+  const fillFromFiles = async (paths: string[]): Promise<void> => {
+    const [result] = await window.storm.inspectGameFiles(paths.slice(0, 1))
+    applyGameFile(result)
+  }
+
+  const acceptImage = (kind: MediaKind, result: MediaResult | null): void => {
+    const name = mediaResult(result)
+    if (!name) return
+    imported.current[kind].push(name)
+    set(kind === 'covers' ? 'cover' : 'banner', name)
+  }
+
+  const importInto = async (kind: MediaKind, snap: TransferSnapshot): Promise<void> => {
+    setBusy(kind)
+    try {
+      const result = await importImageFromSnapshot(kind, snap)
+      if (result === null) toast(t('toast.imageUnsupported'), 'error')
+      else acceptImage(kind, result)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const pickImage = async (kind: MediaKind): Promise<void> => {
+    setBusy(kind)
+    try {
+      acceptImage(kind, await window.storm.pickImage(kind))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Delete images imported for this form that did not end up being used. */
+  const discardUnused = (keep: { cover: string | null; banner: string | null }): void => {
+    for (const name of imported.current.covers) if (name !== keep.cover) void window.storm.discardImage('covers', name)
+    for (const name of imported.current.banners)
+      if (name !== keep.banner) void window.storm.discardImage('banners', name)
+    imported.current = { covers: [], banners: [] }
+  }
+
+  const close = (): void => closeForm()
+
+  // However the form closes — Cancel, Escape (handled in App, so only the
+  // topmost layer closes), a click outside — images imported for it and not
+  // saved are deleted. After a save, `submit` has already kept the used ones.
+  const wasOpen = useRef(false)
+  useEffect(() => {
+    if (wasOpen.current && !formOpen) discardUnused({ cover: null, banner: null })
+    wasOpen.current = formOpen
+  }, [formOpen])
+
+  // Ctrl+V: an image (copied in a browser, or an image file copied in
+  // Explorer) goes to the focused slot — the poster unless the wallpaper slot
+  // has focus. Plain text pasted into a text field stays plain text.
+  useEffect(() => {
+    if (!formOpen) return
+    const onPaste = (e: ClipboardEvent): void => {
+      const snap = snapshotTransfer(e.clipboardData)
+      const target = e.target instanceof HTMLElement ? e.target : null
+      const inText = !!target?.closest('input, textarea, [contenteditable="true"]')
+      const hasFile = snap.files.length > 0
+      if (inText && !hasFile) return
+      const games = gamePaths(snap)
+      if (games.length > 0 && !hasImage(snap)) {
+        e.preventDefault()
+        void fillFromFiles(games)
+        return
+      }
+      if (!hasFile && !imageUrl(snap)) return
+      e.preventDefault()
+      const kind: MediaKind = target?.closest('[data-slot="banners"]') ? 'banners' : 'covers'
+      void importInto(kind, snap)
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  })
+
+  // Dropping anywhere else on the form: a game file fills the form, an image
+  // becomes the poster.
+  const onFormDragOver = (e: React.DragEvent): void => {
+    if (!dragHasFiles(e.dataTransfer) && !dragLooksLikeImage(e.dataTransfer)) return
+    if (!acceptDrag(e)) return
+    e.stopPropagation()
+    setDropActive(true)
+    if (dropTimer.current) window.clearTimeout(dropTimer.current)
+    dropTimer.current = window.setTimeout(() => setDropActive(false), 180)
+  }
+
+  const onFormDrop = (e: React.DragEvent): void => {
+    if (!dragHasFiles(e.dataTransfer) && !dragLooksLikeImage(e.dataTransfer)) return
+    e.preventDefault()
+    e.stopPropagation()
+    setDropActive(false)
+    const snap = snapshotTransfer(e.dataTransfer)
+    const games = gamePaths(snap)
+    if (games.length > 0) void fillFromFiles(games)
+    else if (hasImage(snap)) void importInto('covers', snap)
+    else toast(t('toast.notGameFile'), 'error')
   }
 
   const pickExe = async (): Promise<void> => {
-    const path = await window.storm.pickExe(form.exePath || undefined)
-    if (!path) return
-    setForm((f) => ({
-      ...f,
-      exePath: path,
-      installPath: f.installPath || dirnameOf(path)
-    }))
+    applyGameFile((await window.storm.pickExe(form.exePath || undefined)) ?? undefined)
+  }
+
+  // Opens SteamGridDB in the browser; the poster found there can be dragged
+  // (or copied and pasted) straight back into the slot above.
+  const findPoster = async (): Promise<void> => {
+    const opened = await window.storm.searchPoster(form.title)
+    if (!opened) toast(t('toast.browserFailed'), 'error')
   }
 
   const pickInstall = async (): Promise<void> => {
@@ -113,42 +293,46 @@ export default function GameForm(): React.JSX.Element {
     if (path) set('savePath', path)
   }
 
-  const submit = async (): Promise<void> => {
+  const submit = async (e?: React.FormEvent): Promise<void> => {
+    e?.preventDefault()
+    if (saving) return
     if (!form.title.trim()) {
-      toast(t('form.name'), 'error')
+      toast(t('form.nameRequired'), 'error')
+      titleRef.current?.focus()
       return
     }
     setSaving(true)
     try {
       await window.storm.saveGame({
-        id: editing?.id,
+        id: editingId ?? undefined,
         title: form.title.trim(),
         cover: form.cover,
         banner: form.banner,
         exePath: form.exePath.trim() || null,
+        args: form.args.trim(),
         installPath: form.installPath.trim() || null,
         savePath: form.savePath.trim() || null,
-        tags: form.tags
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter(Boolean),
+        tags: parseTags(form.tags),
         note: form.note,
         played: form.played,
         favorite: form.favorite,
         hidden: form.hidden
       })
+      discardUnused({ cover: form.cover, banner: form.banner })
       toast(editing ? t('toast.saved') : t('toast.created'), 'success')
       closeForm()
     } catch {
-      toast(t('toast.launchFailed'), 'error')
+      toast(t('toast.saveFailed'), 'error')
     } finally {
       setSaving(false)
     }
   }
 
-  const hue = hueFromString(form.title || 'Storm')
-  const cover = coverSrc(form.cover)
-  const banner = bannerSrc(form.banner)
+  const toggles: { key: 'played' | 'favorite' | 'hidden'; label: string; className?: string }[] = [
+    { key: 'played', label: t('form.played') },
+    { key: 'favorite', label: t('form.favorite') },
+    { key: 'hidden', label: t('form.hidden'), className: 'toggle--private' }
+  ]
 
   return (
     <AnimatePresence>
@@ -160,143 +344,175 @@ export default function GameForm(): React.JSX.Element {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closeForm()
+            if (e.target === e.currentTarget) close()
           }}
+          onDragOver={onFormDragOver}
+          onDragEnter={onFormDragOver}
+          onDrop={onFormDrop}
         >
-          <motion.div
-            className="modal modal--form"
+          <motion.form
+            className={`modal modal--form${dropActive ? ' is-drop-target' : ''}`}
             initial={{ opacity: 0, y: 28, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
             transition={SPRING_SOFT}
+            onSubmit={(e) => void submit(e)}
           >
             <header className="modal-head">
               <div className="modal-title">
                 {editing ? <PencilIcon size={17} /> : <PlusIcon size={17} />}
                 <h2>{editing ? t('form.editGame') : t('form.newGame')}</h2>
               </div>
-              <button type="button" className="icon-btn" onClick={closeForm} aria-label={t('action.close')}>
+              <button type="button" className="icon-btn" onClick={close} aria-label={t('action.close')}>
                 <CloseIcon size={16} />
               </button>
             </header>
 
             <div className="modal-body form-grid">
               <aside className="form-media">
-                <div className="media-preview">
-                  <motion.div
-                    className="media-poster"
-                    layoutId={editing ? `poster-${editing.id}` : undefined}
-                    whileHover={{ y: -3 }}
-                  >
-                    {cover ? (
-                      <img src={cover} alt="" />
-                    ) : (
-                      <div
-                        className="card-fallback"
-                        style={{
-                          background: `linear-gradient(150deg, hsl(${hue} 62% 34%), hsl(${(hue + 48) % 360} 58% 18%))`
-                        }}
+                <MediaSlot
+                  kind="covers"
+                  value={form.cover}
+                  title={form.title}
+                  busy={busy === 'covers'}
+                  layoutId={editingId ? `poster-${editingId}` : undefined}
+                  onPick={() => void pickImage('covers')}
+                  onClear={() => set('cover', null)}
+                  onImage={(snap) => void importInto('covers', snap)}
+                  onGameFiles={(paths) => void fillFromFiles(paths)}
+                  footer={
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn--soft btn--block btn--find"
+                        disabled={!form.title.trim()}
+                        onClick={() => void findPoster()}
                       >
-                        <span className="card-fallback-text">{initials(form.title || '?')}</span>
-                      </div>
-                    )}
-                  </motion.div>
-                  <div className="media-actions">
-                    <button type="button" className="btn btn--soft btn--block" onClick={() => void pickCover()}>
-                      <ImageIcon size={15} />
-                      {form.cover ? t('form.replaceImage') : t('form.pickImage')}
-                    </button>
-                    {form.cover && (
-                      <button type="button" className="btn btn--soft btn--block" onClick={() => set('cover', null)}>
-                        <CloseIcon size={15} />
-                        {t('form.removeImage')}
+                        <SearchIcon size={14} />
+                        {t('form.findPoster')}
+                        <ExternalIcon size={13} className="btn-trail" />
                       </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="media-preview media-preview--wide">
-                  <div className="media-banner">
-                    {banner ? (
-                      <img src={banner} alt="" />
-                    ) : (
-                      <span className="media-banner-empty">{t('form.wallpaper')}</span>
-                    )}
-                  </div>
-                  <div className="media-actions">
-                    <button type="button" className="btn btn--soft btn--block" onClick={() => void pickBanner()}>
-                      <ImageIcon size={15} />
-                      {form.banner ? t('form.replaceImage') : t('form.pickImage')}
-                    </button>
-                    {form.banner && (
-                      <button type="button" className="btn btn--soft btn--block" onClick={() => set('banner', null)}>
-                        <CloseIcon size={15} />
-                        {t('form.removeImage')}
-                      </button>
-                    )}
-                  </div>
-                </div>
+                      <span className="field-hint slot-note">
+                        {form.title.trim() ? t('form.findPosterHint') : t('form.findPosterNeedsTitle')}
+                      </span>
+                    </>
+                  }
+                />
+                <MediaSlot
+                  kind="banners"
+                  value={form.banner}
+                  title={form.title}
+                  busy={busy === 'banners'}
+                  onPick={() => void pickImage('banners')}
+                  onClear={() => set('banner', null)}
+                  onImage={(snap) => void importInto('banners', snap)}
+                  onGameFiles={(paths) => void fillFromFiles(paths)}
+                />
               </aside>
 
               <div className="form-fields">
+                {filledFrom ? (
+                  <div className="form-note form-note--accent">
+                    <BoltIcon size={15} />
+                    <span>{t('form.filledFrom', { file: filledFrom })}</span>
+                  </div>
+                ) : (
+                  !editing &&
+                  !form.exePath && (
+                    <div className="form-note">
+                      <BoltIcon size={15} />
+                      <span>{t('form.dropGameTip')}</span>
+                    </div>
+                  )
+                )}
+
                 <label className="field">
                   <span className="field-label">{t('form.name')}</span>
                   <input
+                    ref={titleRef}
                     className="input"
                     value={form.title}
                     placeholder={t('form.namePlaceholder')}
-                    onChange={(e) => set('title', e.target.value)}
+                    onChange={(e) => {
+                      autoTitle.current = false
+                      set('title', e.target.value)
+                    }}
                     autoFocus
                   />
                 </label>
 
-                <label className="field">
+                <div className="field">
                   <span className="field-label">{t('form.exe')}</span>
                   <div className="input-row">
                     <input
-                      className="input"
+                      className="input input--mono"
                       value={form.exePath}
-                      placeholder="C:\\Games\\Game\\game.exe"
+                      placeholder="C:\Games\Game\game.exe"
                       onChange={(e) => set('exePath', e.target.value)}
+                      spellCheck={false}
                     />
                     <button type="button" className="btn btn--soft" onClick={() => void pickExe()}>
                       {t('action.browse')}
                     </button>
                   </div>
                   <span className="field-hint">{t('form.hint.exe')}</span>
-                </label>
+                </div>
 
                 <label className="field">
+                  <span className="field-label">{t('form.args')}</span>
+                  <input
+                    className="input input--mono"
+                    value={form.args}
+                    placeholder={t('form.argsPlaceholder')}
+                    onChange={(e) => set('args', e.target.value)}
+                    spellCheck={false}
+                  />
+                  <span className="field-hint">{t('form.hint.args')}</span>
+                </label>
+
+                <div className="field">
                   <span className="field-label">{t('form.installPath')}</span>
                   <div className="input-row">
                     <input
-                      className="input"
+                      className="input input--mono"
                       value={form.installPath}
-                      placeholder="C:\\Games\\Game"
+                      placeholder="C:\Games\Game"
                       onChange={(e) => set('installPath', e.target.value)}
+                      spellCheck={false}
                     />
-                    <button type="button" className="btn btn--soft" onClick={() => void pickInstall()}>
+                    <button
+                      type="button"
+                      className="btn btn--soft"
+                      onClick={() => void pickInstall()}
+                      title={t('action.browse')}
+                    >
                       <FolderIcon size={15} />
                     </button>
                   </div>
                   <span className="field-hint">{t('form.hint.install')}</span>
-                </label>
+                </div>
 
-                <label className="field">
+                <div className="field">
                   <span className="field-label">{t('form.savePath')}</span>
                   <div className="input-row">
                     <input
-                      className="input"
+                      className="input input--mono"
                       value={form.savePath}
-                      placeholder="C:\\Users\\You\\Saved Games"
+                      placeholder="C:\Users\You\Saved Games"
                       onChange={(e) => set('savePath', e.target.value)}
+                      spellCheck={false}
                     />
-                    <button type="button" className="btn btn--soft" onClick={() => void pickSave()}>
+                    <button
+                      type="button"
+                      className="btn btn--soft"
+                      onClick={() => void pickSave()}
+                      title={t('action.browse')}
+                    >
                       <FolderIcon size={15} />
                     </button>
                   </div>
                   <span className="field-hint">{t('form.hint.save')}</span>
-                </label>
+                </div>
 
                 <label className="field">
                   <span className="field-label">{t('form.tags')}</span>
@@ -320,50 +536,33 @@ export default function GameForm(): React.JSX.Element {
                 </label>
 
                 <div className="field field--row">
-                  <button
-                    type="button"
-                    className={`toggle${form.played ? ' is-on' : ''}`}
-                    onClick={() => set('played', !form.played)}
-                  >
-                    <span className="toggle-track">
-                      <motion.span className="toggle-thumb" layout transition={SPRING_SOFT} />
-                    </span>
-                    {t('form.played')}
-                  </button>
-                  <button
-                    type="button"
-                    className={`toggle${form.favorite ? ' is-on' : ''}`}
-                    onClick={() => set('favorite', !form.favorite)}
-                  >
-                    <span className="toggle-track">
-                      <motion.span className="toggle-thumb" layout transition={SPRING_SOFT} />
-                    </span>
-                    {t('form.favorite')}
-                  </button>
-                  <button
-                    type="button"
-                    className={`toggle toggle--private${form.hidden ? ' is-on' : ''}`}
-                    onClick={() => set('hidden', !form.hidden)}
-                  >
-                    <span className="toggle-track">
-                      <motion.span className="toggle-thumb" layout transition={SPRING_SOFT} />
-                    </span>
-                    {t('form.hidden')}
-                  </button>
+                  {toggles.map((toggle) => (
+                    <button
+                      key={toggle.key}
+                      type="button"
+                      className={`toggle${toggle.className ? ` ${toggle.className}` : ''}${form[toggle.key] ? ' is-on' : ''}`}
+                      onClick={() => set(toggle.key, !form[toggle.key])}
+                      aria-pressed={form[toggle.key]}
+                    >
+                      <span className="toggle-track">
+                        <motion.span className="toggle-thumb" layout transition={SPRING_SOFT} />
+                      </span>
+                      {toggle.label}
+                    </button>
+                  ))}
                 </div>
                 <span className="field-hint">{t('form.hint.hidden')}</span>
               </div>
             </div>
 
             <footer className="modal-foot">
-              <button type="button" className="btn btn--ghost" onClick={closeForm}>
+              <button type="button" className="btn btn--ghost" onClick={close}>
                 {t('action.cancel')}
               </button>
               <motion.button
-                type="button"
+                type="submit"
                 className="btn btn--primary"
-                onClick={() => void submit()}
-                disabled={saving}
+                disabled={saving || busy !== null}
                 whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.97 }}
               >
@@ -371,7 +570,7 @@ export default function GameForm(): React.JSX.Element {
                 {editing ? t('action.save') : t('action.create')}
               </motion.button>
             </footer>
-          </motion.div>
+          </motion.form>
         </motion.div>
       )}
     </AnimatePresence>

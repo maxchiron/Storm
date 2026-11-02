@@ -1,6 +1,8 @@
 import type { Language } from '@shared/types'
 import type { TranslationKey } from '@shared/i18n'
 
+type T = (key: TranslationKey) => string
+
 export function coverSrc(name: string | null | undefined): string | null {
   return name ? `storm://asset/covers/${encodeURIComponent(name)}` : null
 }
@@ -20,6 +22,11 @@ export function bannerSrc(name: string | null | undefined): string | null {
   return name ? `storm://asset/banners/${encodeURIComponent(name)}` : null
 }
 
+/** The last part of a path, whichever slash it uses. */
+export function baseName(p: string): string {
+  return p.split(/[\\/]/).filter(Boolean).pop() ?? p
+}
+
 /** Deterministic hue from a title, so placeholder posters look intentional. */
 export function hueFromString(value: string): number {
   let hash = 0
@@ -34,7 +41,7 @@ export function initials(title: string): string {
   return (words[0][0] + words[1][0]).toUpperCase()
 }
 
-export function formatPlaytime(minutes: number, t: (key: TranslationKey) => string): string {
+export function formatPlaytime(minutes: number, t: T): string {
   if (!minutes || minutes < 1) return `0 ${t('common.minutes')}`
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
@@ -43,7 +50,7 @@ export function formatPlaytime(minutes: number, t: (key: TranslationKey) => stri
   return `${hours} ${t('common.hours')} ${mins} ${t('common.minutes')}`
 }
 
-export function formatDate(iso: string | null, language: Language, t: (key: TranslationKey) => string): string {
+export function formatDate(iso: string | null, language: Language, t: T): string {
   if (!iso) return t('common.never')
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return t('common.unknown')
@@ -58,7 +65,7 @@ export function formatDate(iso: string | null, language: Language, t: (key: Tran
   }
 }
 
-export function formatDateTime(iso: string | null, language: Language, t: (key: TranslationKey) => string): string {
+export function formatDateTime(iso: string | null, language: Language, t: T): string {
   if (!iso) return t('common.never')
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return t('common.unknown')
@@ -76,7 +83,7 @@ export function formatDateTime(iso: string | null, language: Language, t: (key: 
 }
 
 /** Elapsed time of a live session, e.g. "1h 24m". */
-export function formatElapsed(startedAt: string, t: (key: TranslationKey) => string): string {
+export function formatElapsed(startedAt: string, t: T): string {
   const ms = Date.now() - new Date(startedAt).getTime()
   if (Number.isNaN(ms) || ms < 0) return `0 ${t('common.minutes')}`
   const totalMinutes = Math.floor(ms / 60_000)

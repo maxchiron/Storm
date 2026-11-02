@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useStorm, useT } from '../store/useStorm'
-import { bannerSrc, coverSrc, formatDate, formatDateTime, formatElapsed, formatPlaytime, hueFromString, initials, truncatePath } from '../utils/format'
-import { EASE, SPRING_SOFT } from '../motion'
+import { useStorm, useT, type Translate } from '../store/useStorm'
+import type { Game, ScreenshotInfo } from '@shared/types'
 import {
+  bannerSrc,
+  coverSrc,
+  formatDate,
+  formatDateTime,
+  formatElapsed,
+  formatPlaytime,
+  hueFromString,
+  truncatePath
+} from '../utils/format'
+import { acceleratorLabel } from '../utils/accelerator'
+import { comboKeys } from '../utils/gamepad'
+import { EASE, SPRING_SOFT } from '../motion'
+import Poster from './Poster'
+import {
+  CameraIcon,
   ChevronIcon,
   ClockIcon,
   CopyIcon,
@@ -18,13 +32,15 @@ import {
   TrashIcon
 } from './icons'
 
-function useElapsed(startedAt: string | undefined): string {
-  const t = useT()
+const GALLERY_LIMIT = 8
+
+function useElapsed(startedAt: string | undefined, t: Translate): string {
   const [value, setValue] = useState(() => (startedAt ? formatElapsed(startedAt, t) : ''))
   useEffect(() => {
     if (!startedAt) return
     setValue(formatElapsed(startedAt, t))
-    const id = setInterval(() => setValue(formatElapsed(startedAt, t)), 1000)
+    // Minutes are all it shows, so a slow tick is plenty.
+    const id = setInterval(() => setValue(formatElapsed(startedAt, t)), 10_000)
     return () => clearInterval(id)
   }, [startedAt, t])
   return value
@@ -38,7 +54,8 @@ function PathRow({
 }: {
   label: string
   value: string | null
-  onReveal: (v: string) => void
+  /** omitted for values that are not paths (launch options) */
+  onReveal?: (v: string) => void
   onCopy: (v: string) => void
 }): React.JSX.Element {
   const t = useT()
@@ -52,9 +69,11 @@ function PathRow({
       </div>
       {value && (
         <div className="path-actions">
-          <button type="button" className="icon-btn" title={t('action.reveal')} onClick={() => onReveal(value)}>
-            <ExternalIcon size={14} />
-          </button>
+          {onReveal && (
+            <button type="button" className="icon-btn" title={t('action.reveal')} onClick={() => onReveal(value)}>
+              <ExternalIcon size={14} />
+            </button>
+          )}
           <button type="button" className="icon-btn" title={t('action.copy')} onClick={() => onCopy(value)}>
             <CopyIcon size={14} />
           </button>
@@ -64,10 +83,83 @@ function PathRow({
   )
 }
 
+/** The game's screenshots, newest first, reloaded whenever a new one lands. */
+function Screenshots({ game }: { game: Game }): React.JSX.Element {
+  const t = useT()
+  const language = useStorm((s) => s.settings.language)
+  const hotkey = useStorm((s) => s.settings.screenshotHotkey)
+  const combo = useStorm((s) => s.settings.screenshotPadCombo)
+  const shotVersion = useStorm((s) => s.shotVersion)
+  const openFolder = useStorm((s) => s.openFolder)
+  const [shots, setShots] = useState<ScreenshotInfo[] | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void window.storm.listScreenshots(game.id).then((list) => {
+      if (alive) setShots(list)
+    })
+    return () => {
+      alive = false
+    }
+  }, [game.id, shotVersion])
+
+  const shortcut = [hotkey ? acceleratorLabel(hotkey) : null, combo.length ? comboKeys(combo).join(' + ') : null]
+    .filter(Boolean)
+    .join(' / ')
+
+  if (shots === null) return <section className="panel panel--shots" />
+
+  return (
+    <section className="panel panel--shots">
+      <div className="panel-head">
+        <h3 className="panel-title">
+          {t('detail.screenshots')}
+          {shots.length > 0 && <span className="panel-count">{shots.length}</span>}
+        </h3>
+        {shots.length > 0 && (
+          <button type="button" className="btn btn--soft" onClick={() => void openFolder('screenshots', game.id)}>
+            <FolderIcon size={14} />
+            {t('action.openScreenshots')}
+          </button>
+        )}
+      </div>
+      {shots.length === 0 ? (
+        <p className="panel-hint panel-hint--flush">
+          <CameraIcon size={14} />
+          {shortcut ? t('detail.noScreenshots', { shortcut }) : t('detail.noScreenshotsOff')}
+        </p>
+      ) : (
+        <div className="shot-grid">
+          {shots.slice(0, GALLERY_LIMIT).map((shot, i) => {
+            const more = i === GALLERY_LIMIT - 1 ? shots.length - GALLERY_LIMIT : 0
+            return (
+              <motion.button
+                type="button"
+                key={shot.id}
+                className="shot"
+                title={formatDateTime(shot.takenAt, language, t)}
+                onClick={() =>
+                  more > 0 ? void openFolder('screenshots', game.id) : void window.storm.openScreenshot(shot.id)
+                }
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03, duration: 0.3, ease: EASE }}
+              >
+                {shot.thumbUrl ? <img src={shot.thumbUrl} alt="" draggable={false} /> : <CameraIcon size={20} />}
+                {more > 0 && <span className="shot-more">{t('detail.moreScreenshots', { count: more + 1 })}</span>}
+              </motion.button>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function GameDetail(): React.JSX.Element {
   const selectedId = useStorm((s) => s.selectedId)
-  const games = useStorm((s) => s.games)
-  const running = useStorm((s) => s.running)
+  const game = useStorm((s) => (s.selectedId ? (s.games.find((g) => g.id === s.selectedId) ?? null) : null))
+  const session = useStorm((s) => s.running.find((r) => r.gameId === s.selectedId))
   const select = useStorm((s) => s.select)
   const openForm = useStorm((s) => s.openForm)
   const requestDelete = useStorm((s) => s.requestDelete)
@@ -80,19 +172,7 @@ export default function GameDetail(): React.JSX.Element {
   const copyPath = useStorm((s) => s.copyPath)
   const language = useStorm((s) => s.settings.language)
   const t = useT()
-
-  const game = useMemo(() => games.find((g) => g.id === selectedId) ?? null, [games, selectedId])
-  const session = running.find((r) => r.gameId === selectedId)
-  const elapsed = useElapsed(session?.startedAt)
-
-  useEffect(() => {
-    if (!selectedId) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') select(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [selectedId, select])
+  const elapsed = useElapsed(session?.startedAt, t)
 
   const cover = coverSrc(game?.cover)
   const banner = bannerSrc(game?.banner)
@@ -100,7 +180,7 @@ export default function GameDetail(): React.JSX.Element {
 
   return (
     <AnimatePresence>
-      {game && (
+      {game && selectedId && (
         <motion.div
           className="detail-overlay"
           key={game.id}
@@ -116,10 +196,8 @@ export default function GameDetail(): React.JSX.Element {
             exit={{ scale: 1.04, opacity: 0 }}
             transition={{ duration: 0.6, ease: EASE }}
           >
-            {banner ? (
-              <div className="detail-bg" style={{ backgroundImage: `url("${banner}")` }} />
-            ) : cover ? (
-              <div className="detail-bg" style={{ backgroundImage: `url("${cover}")` }} />
+            {banner || cover ? (
+              <div className="detail-bg" style={{ backgroundImage: `url("${banner ?? cover}")` }} />
             ) : (
               <div
                 className="detail-bg"
@@ -160,12 +238,7 @@ export default function GameDetail(): React.JSX.Element {
                 >
                   {game.hidden ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
                 </button>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  title={t('action.edit')}
-                  onClick={() => openForm(game.id)}
-                >
+                <button type="button" className="icon-btn" title={t('action.edit')} onClick={() => openForm(game.id)}>
                   <PencilIcon size={16} />
                 </button>
                 <button
@@ -181,18 +254,7 @@ export default function GameDetail(): React.JSX.Element {
 
             <div className="detail-body">
               <motion.div className="detail-poster" layoutId={`poster-${game.id}`}>
-                {cover ? (
-                  <img src={cover} alt={game.title} draggable={false} />
-                ) : (
-                  <div
-                    className="card-fallback"
-                    style={{
-                      background: `linear-gradient(150deg, hsl(${hue} 62% 34%), hsl(${(hue + 48) % 360} 58% 18%))`
-                    }}
-                  >
-                    <span className="card-fallback-text">{initials(game.title)}</span>
-                  </div>
-                )}
+                <Poster title={game.title} cover={game.cover} />
               </motion.div>
 
               <div className="detail-main">
@@ -223,12 +285,13 @@ export default function GameDetail(): React.JSX.Element {
                 <div className="detail-actions">
                   <motion.button
                     type="button"
-                    className="btn btn--play"
+                    className={`btn btn--play${session ? ' is-running' : ''}`}
                     onClick={() => void launchGame(game.id)}
-                    whileHover={{ y: -2, scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
+                    disabled={!!session}
+                    whileHover={session ? undefined : { y: -2, scale: 1.02 }}
+                    whileTap={session ? undefined : { scale: 0.97 }}
                   >
-                    <PlayIcon size={17} />
+                    {session ? <span className="live-dot" /> : <PlayIcon size={17} />}
                     {session ? t('state.playing') : t('action.play')}
                   </motion.button>
                   <motion.button
@@ -245,6 +308,7 @@ export default function GameDetail(): React.JSX.Element {
                     type="button"
                     className="btn btn--ghost"
                     onClick={() => void openFolder('install', game.id)}
+                    disabled={!game.installPath && !game.exePath}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.97 }}
                   >
@@ -255,6 +319,7 @@ export default function GameDetail(): React.JSX.Element {
                     type="button"
                     className="btn btn--ghost"
                     onClick={() => void openFolder('save', game.id)}
+                    disabled={!game.savePath}
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.97 }}
                   >
@@ -279,9 +344,7 @@ export default function GameDetail(): React.JSX.Element {
                     <span className="stat-tile-label">{t('detail.lastPlayed')}</span>
                   </div>
                   <div className="stat-tile">
-                    <span className="stat-tile-value stat-tile-value--sm">
-                      {formatDate(game.addedAt, language, t)}
-                    </span>
+                    <span className="stat-tile-value stat-tile-value--sm">{formatDate(game.addedAt, language, t)}</span>
                     <span className="stat-tile-label">{t('detail.added')}</span>
                   </div>
                 </div>
@@ -289,6 +352,8 @@ export default function GameDetail(): React.JSX.Element {
             </div>
 
             <div className="detail-sections">
+              <Screenshots game={game} />
+
               <section className="panel">
                 <h3 className="panel-title">{t('detail.paths')}</h3>
                 <div className="path-list">
@@ -298,6 +363,7 @@ export default function GameDetail(): React.JSX.Element {
                     onReveal={(v) => void revealPath(v)}
                     onCopy={(v) => void copyPath(v)}
                   />
+                  {game.args && <PathRow label={t('form.args')} value={game.args} onCopy={(v) => void copyPath(v)} />}
                   <PathRow
                     label={t('form.installPath')}
                     value={game.installPath}
@@ -311,9 +377,7 @@ export default function GameDetail(): React.JSX.Element {
                     onCopy={(v) => void copyPath(v)}
                   />
                 </div>
-                <p className="panel-hint">
-                  {game.installed ? t('detail.installed') : t('detail.missing')}
-                </p>
+                <p className="panel-hint">{game.installed ? t('detail.installed') : t('detail.missing')}</p>
               </section>
 
               {game.tags.length > 0 && (
@@ -334,7 +398,7 @@ export default function GameDetail(): React.JSX.Element {
                 {game.note ? (
                   <p className="note-text">{game.note}</p>
                 ) : (
-                  <p className="panel-hint">{t('detail.noData')}</p>
+                  <p className="panel-hint">{t('detail.noNote')}</p>
                 )}
                 {game.firstPlayedAt && (
                   <p className="panel-hint">

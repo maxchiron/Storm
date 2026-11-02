@@ -1,16 +1,14 @@
 export type Language = 'zh' | 'en'
 export type PosterSize = 'sm' | 'md' | 'lg'
-export type ThemeName = 'storm' | 'midnight' | 'obsidian'
-export type FilterKey =
-  | 'all'
-  | 'installed'
-  | 'notInstalled'
-  | 'played'
-  | 'unplayed'
-  | 'favorite'
-  | 'hidden'
+export type ThemeName = 'storm' | 'aurora' | 'nebula' | 'synthwave' | 'ember' | 'obsidian'
+/** How the colour scheme is chosen: fixed, or following Windows. */
+export type AppearanceMode = 'dark' | 'light' | 'system'
+/** The scheme actually on screen once `system` has been resolved. */
+export type ResolvedMode = 'dark' | 'light'
+export type ScreenshotFormat = 'png' | 'jpg'
+export type FilterKey = 'all' | 'installed' | 'notInstalled' | 'played' | 'unplayed' | 'favorite' | 'hidden'
 export type SortKey = 'title' | 'addedAt' | 'lastPlayed' | 'playtime' | 'playCount'
-export type FolderKind = 'install' | 'save' | 'data'
+export type MediaKind = 'covers' | 'banners'
 
 export interface Game {
   id: string
@@ -20,6 +18,8 @@ export interface Game {
   /** file name inside the banners/ media folder */
   banner: string | null
   exePath: string | null
+  /** Extra command-line arguments passed to the executable. */
+  args: string
   installPath: string | null
   savePath: string | null
   installed: boolean
@@ -37,11 +37,16 @@ export interface Game {
   updatedAt: string
 }
 
+/**
+ * Fields the user can edit. Every field is optional on update; a new game
+ * needs at least a title (it falls back to "Untitled").
+ */
 export interface GameInput {
-  title: string
+  title?: string
   cover?: string | null
   banner?: string | null
   exePath?: string | null
+  args?: string
   installPath?: string | null
   savePath?: string | null
   played?: boolean
@@ -51,9 +56,30 @@ export interface GameInput {
   note?: string
 }
 
+/** What Storm could work out about a dropped or picked .exe / .lnk. */
+export interface GameDraft {
+  title: string
+  exePath: string
+  args: string
+  installPath: string
+  /** The file the user actually handed over (the .lnk itself, for a shortcut). */
+  source: string
+}
+
+export type GameFileError = 'UNSUPPORTED' | 'NOT_FOUND' | 'BROKEN_SHORTCUT'
+
+export type GameFileResult = { ok: true; draft: GameDraft } | { ok: false; path: string; error: GameFileError }
+
+export type MediaError = 'UNSUPPORTED' | 'TOO_LARGE' | 'DOWNLOAD_FAILED' | 'FAILED'
+
+export type MediaResult = { ok: true; name: string } | { ok: false; error: MediaError }
+
+export type LaunchError = 'NOT_FOUND' | 'NO_EXE' | 'ALREADY_RUNNING' | 'SPAWN_FAILED'
+
 export interface AppSettings {
   language: Language
   theme: ThemeName
+  appearance: AppearanceMode
   accent: string
   posterSize: PosterSize
   /** how often the install folders are polled, in seconds */
@@ -61,6 +87,18 @@ export interface AppSettings {
   minimizeToTray: boolean
   confirmBeforeDelete: boolean
   reduceMotion: boolean
+  /** Electron accelerator for the screenshot hotkey; empty = off. */
+  screenshotHotkey: string
+  /** Standard-mapping gamepad buttons that must be held together; empty = off. */
+  screenshotPadCombo: number[]
+  /** Only listen for the screenshot shortcuts while a game started from Storm is running. */
+  screenshotOnlyWhilePlaying: boolean
+  /** Where screenshots go; empty = Pictures\Storm. */
+  screenshotDir: string
+  screenshotFormat: ScreenshotFormat
+  screenshotSound: boolean
+  /** Flash a small "saved" card in the corner of the screen. */
+  screenshotNotify: boolean
 }
 
 export interface SessionRecord {
@@ -72,6 +110,45 @@ export interface SessionRecord {
   interrupted: boolean
 }
 
+export interface ScreenshotRecord {
+  id: string
+  /** null when no game launched from Storm was running at the time */
+  gameId: string | null
+  /** absolute path of the full-size image */
+  file: string
+  /** file name of the small preview inside the thumbs/ media folder */
+  thumb: string | null
+  takenAt: string
+}
+
+/** A screenshot as the renderer sees it. */
+export interface ScreenshotInfo {
+  id: string
+  gameId: string | null
+  file: string
+  thumbUrl: string | null
+  takenAt: string
+}
+
+export type ScreenshotError = 'BUSY' | 'CAPTURE_FAILED' | 'WRITE_FAILED'
+
+export type ScreenshotResult = { ok: true; shot: ScreenshotInfo } | { ok: false; error: ScreenshotError }
+
+/** Payload of the `storm:screenshot` event. */
+export interface ScreenshotEvent {
+  shot: ScreenshotInfo
+  title: string | null
+}
+
+/**
+ * Where the screenshot hotkey stands:
+ *   off          no hotkey configured
+ *   idle         configured, waiting for a game to start
+ *   active       registered and listening
+ *   unavailable  another program already owns that key combination
+ */
+export type HotkeyState = 'off' | 'idle' | 'active' | 'unavailable'
+
 export interface RunningSession {
   gameId: string
   pid: number | null
@@ -79,31 +156,75 @@ export interface RunningSession {
   startedAt: string
 }
 
+/** Payload of the `storm:session` event, sent when a play session ends. */
+export interface SessionEvent {
+  gameId: string
+  minutes: number
+  startedAt: string
+  endedAt: string
+}
+
 export interface LibrarySnapshot {
   games: Game[]
   settings: AppSettings
   running: RunningSession[]
   dataDir: string
+  hotkey: HotkeyState
+  /** Set when the library file was unreadable and Storm started from a backup copy. */
+  recoveredFrom: string | null
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   language: 'zh',
   theme: 'storm',
+  appearance: 'dark',
   accent: '#38bdf8',
   posterSize: 'md',
   scanIntervalSeconds: 10,
   minimizeToTray: true,
   confirmBeforeDelete: true,
-  reduceMotion: false
+  reduceMotion: false,
+  screenshotHotkey: 'F12',
+  // L3 + R3: clicking both sticks rarely opens anything in a game, so the
+  // screenshot is not spoiled by a menu popping up.
+  screenshotPadCombo: [10, 11],
+  screenshotOnlyWhilePlaying: true,
+  screenshotDir: '',
+  screenshotFormat: 'png',
+  screenshotSound: true,
+  screenshotNotify: true
 }
 
 export const ACCENTS: { id: string; label: string; color: string }[] = [
   { id: 'storm', label: 'Storm', color: '#38bdf8' },
+  { id: 'aurora', label: 'Aurora', color: '#34d399' },
   { id: 'violet', label: 'Nebula', color: '#a78bfa' },
+  { id: 'neon', label: 'Neon', color: '#f472b6' },
   { id: 'ember', label: 'Ember', color: '#fb923c' },
-  { id: 'toxic', label: 'Toxic', color: '#4ade80' },
   { id: 'rose', label: 'Rose', color: '#fb7185' },
-  { id: 'gold', label: 'Gold', color: '#fbbf24' }
+  { id: 'gold', label: 'Gold', color: '#fbbf24' },
+  { id: 'mono', label: 'Mono', color: '#e4e4e7' }
 ]
 
 export const POSTER_SIZES: PosterSize[] = ['sm', 'md', 'lg']
+
+/** Button names for the W3C "standard" gamepad mapping (Xbox layout). */
+export const PAD_BUTTONS: Record<number, string> = {
+  0: 'A',
+  1: 'B',
+  2: 'X',
+  3: 'Y',
+  4: 'LB',
+  5: 'RB',
+  6: 'LT',
+  7: 'RT',
+  8: 'View',
+  9: 'Menu',
+  10: 'L3',
+  11: 'R3',
+  12: '↑',
+  13: '↓',
+  14: '←',
+  15: '→',
+  16: 'Xbox'
+}

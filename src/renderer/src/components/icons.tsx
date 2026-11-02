@@ -27,13 +27,6 @@ export const PlayIcon = (p: IconProps): React.JSX.Element => (
   </Icon>
 )
 
-export const PauseIcon = (p: IconProps): React.JSX.Element => (
-  <Icon {...p}>
-    <rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="currentColor" stroke="none" />
-    <rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="currentColor" stroke="none" />
-  </Icon>
-)
-
 export const PlusIcon = (p: IconProps): React.JSX.Element => (
   <Icon {...p}>
     <path d="M12 5v14M5 12h14" />
@@ -169,7 +162,11 @@ export const ClockIcon = (p: IconProps): React.JSX.Element => (
 
 export const BoltIcon = (p: IconProps): React.JSX.Element => (
   <Icon {...p}>
-    <path d="M13.5 2.5 4.8 13.2a.7.7 0 0 0 .55 1.13H10l-.5 7.2 8.7-10.7a.7.7 0 0 0-.55-1.13H13l.5-7.2Z" fill="currentColor" stroke="none" />
+    <path
+      d="M13.5 2.5 4.8 13.2a.7.7 0 0 0 .55 1.13H10l-.5 7.2 8.7-10.7a.7.7 0 0 0-.55-1.13H13l.5-7.2Z"
+      fill="currentColor"
+      stroke="none"
+    />
   </Icon>
 )
 
@@ -188,7 +185,12 @@ export const MaximizeIcon = (p: IconProps): React.JSX.Element => (
 export const RestoreIcon = (p: IconProps): React.JSX.Element => (
   <svg width={p.size ?? 14} height={p.size ?? 14} viewBox="0 0 14 14" aria-hidden="true" {...p}>
     <rect x="2.4" y="4.4" width="7" height="7" rx="1.3" fill="none" stroke="currentColor" strokeWidth="1.2" />
-    <path d="M5 4.4V3.4A1 1 0 0 1 6 2.4h5.6A1 1 0 0 1 12.6 3.4V9a1 1 0 0 1-1 1h-1" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    <path
+      d="M5 4.4V3.4A1 1 0 0 1 6 2.4h5.6A1 1 0 0 1 12.6 3.4V9a1 1 0 0 1-1 1h-1"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.2"
+    />
   </svg>
 )
 
@@ -196,4 +198,59 @@ export const CloseWindowIcon = (p: IconProps): React.JSX.Element => (
   <svg width={p.size ?? 14} height={p.size ?? 14} viewBox="0 0 14 14" aria-hidden="true" {...p}>
     <path d="M3.4 3.4 10.6 10.6M10.6 3.4 3.4 10.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
   </svg>
+)
+
+export const CameraIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.4-2h5.8l1.4 2h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9Z" />
+    <circle cx="12" cy="12.8" r="3.3" />
+  </Icon>
+)
+
+export const KeyboardIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <rect x="2.5" y="6" width="19" height="12" rx="2" />
+    <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M6.5 13.5h.01M17 13.5h.01M9.5 14h5" />
+  </Icon>
+)
+
+export const GamepadIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M7.2 7h9.6a4.2 4.2 0 0 1 4.1 3.3l1 4.8a2.4 2.4 0 0 1-4.1 2.1L15.6 15H8.4l-2.2 2.2a2.4 2.4 0 0 1-4.1-2.1l1-4.8A4.2 4.2 0 0 1 7.2 7Z" />
+    <path d="M8 9.8v3M6.5 11.3h3M15.5 10.4h.01M17.4 12.2h.01" />
+  </Icon>
+)
+
+export const SunIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.8v2M12 19.2v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.8 12h2M19.2 12h2M4.6 19.4 6 18M18 6l1.4-1.4" />
+  </Icon>
+)
+
+export const MoonIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M20 14.6A8 8 0 0 1 9.4 4a8 8 0 1 0 10.6 10.6Z" />
+  </Icon>
+)
+
+export const MonitorIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <rect x="3" y="4.5" width="18" height="12" rx="2" />
+    <path d="M9 20h6M12 16.5V20" />
+  </Icon>
+)
+
+export const DropIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5" />
+    <path d="M4 15.5v2A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-2" />
+  </Icon>
+)
+
+export const ClipboardIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <rect x="5" y="4.5" width="14" height="16" rx="2" />
+    <path d="M9 4.5V3.8A.8.8 0 0 1 9.8 3h4.4a.8.8 0 0 1 .8.8v.7M9 4.5h6" />
+  </Icon>
 )

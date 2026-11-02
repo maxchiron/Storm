@@ -1,28 +1,67 @@
 /* ------------------------------------------------------------------ *
  *  Storm — design tokens, reset and primitives
+ *
+ *  Three layers of colour:
+ *    · the theme (Storm, Aurora, …) tints the backdrop: --bg-*, --glow-*
+ *      (set from src/shared/themes.ts, so main, renderer and the
+ *      Settings previews all agree)
+ *    · the mode (dark / light) sets text, surfaces and strokes below
+ *    · the accent comes from Settings: --accent, --accent-ink, --on-accent
  * ------------------------------------------------------------------ */
 
 :root {
+  color-scheme: dark;
+
   --accent: #38bdf8;
   --accent-rgb: 56, 189, 248;
+  /* accent used for text and icons — always readable on the page */
+  --accent-ink: #38bdf8;
+  /* text placed on an accent fill */
+  --on-accent: #06101c;
 
-  --bg-0: #05060b;
-  --bg-1: #0a0c15;
-  --bg-2: #0d101c;
+  --bg-0: #05070d;
+  --bg-1: #0a0f1c;
+  --bg-2: #101a2e;
+  --glow-1: 139, 92, 246;
+  --glow-2: 59, 130, 246;
+
+  --text-0: #eef2fb;
+  --text-1: #a3adc4;
+  --text-2: #6a748f;
 
   --surface: rgba(255, 255, 255, 0.045);
   --surface-2: rgba(255, 255, 255, 0.075);
   --surface-3: rgba(255, 255, 255, 0.11);
   --stroke: rgba(255, 255, 255, 0.075);
   --stroke-2: rgba(255, 255, 255, 0.14);
+  --divider: rgba(255, 255, 255, 0.05);
 
-  --text-0: #eef2fb;
-  --text-1: #a3adc4;
-  --text-2: #6a748f;
+  /* input wells, segmented tracks */
+  --field: rgba(0, 0, 0, 0.28);
+  --field-focus: rgba(0, 0, 0, 0.36);
+  /* translucent chrome tinted by the theme */
+  --chrome: color-mix(in srgb, var(--bg-1) 80%, transparent);
+  --chrome-2: color-mix(in srgb, var(--bg-0) 64%, transparent);
+  --popover: color-mix(in srgb, var(--bg-2) 92%, #000 8%);
+  --modal-top: color-mix(in srgb, var(--bg-2) 90%, #000 10%);
+  --modal-bottom: color-mix(in srgb, var(--bg-1) 94%, #000 6%);
+  --scrim: rgba(2, 4, 10, 0.6);
+  --icon-btn: rgba(0, 0, 0, 0.38);
+  --toggle-off: rgba(255, 255, 255, 0.1);
+
+  --glow-a: 0.42;
+  --glow-b: 0.34;
+  --glow-c: 0.24;
+  --vignette: rgba(0, 0, 0, 0.55);
+  --grain: 0.032;
 
   --danger: #f87171;
   --ok: #4ade80;
   --warn: #fbbf24;
+  --ok-ink: #bbf7d0;
+  --live-ink: #fecaca;
+  --danger-ink: #fecaca;
+  --private-ink: #ddd6fe;
 
   /* The private shelf — hidden games and the view that reveals them. */
   --private: #a78bfa;
@@ -37,6 +76,9 @@
   --shadow-2: 0 16px 44px rgba(0, 0, 0, 0.5);
   --shadow-3: 0 30px 80px rgba(0, 0, 0, 0.62);
 
+  --scroll-thumb: rgba(255, 255, 255, 0.09);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.18);
+
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-1: 0.14s;
   --dur-2: 0.24s;
@@ -49,18 +91,70 @@
   --font: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont,
     'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC',
     'Hiragino Sans GB', sans-serif;
+  --mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
 }
 
-:root[data-theme='midnight'] {
-  --bg-0: #060a14;
-  --bg-1: #0b1220;
-  --bg-2: #0e1729;
+:root[data-mode='light'] {
+  color-scheme: light;
+
+  --text-0: #0f172a;
+  --text-1: #46536a;
+  --text-2: #7e8aa1;
+
+  --surface: rgba(255, 255, 255, 0.56);
+  --surface-2: rgba(255, 255, 255, 0.8);
+  --surface-3: #ffffff;
+  --stroke: rgba(15, 23, 42, 0.085);
+  --stroke-2: rgba(15, 23, 42, 0.15);
+  --divider: rgba(15, 23, 42, 0.06);
+
+  --field: rgba(255, 255, 255, 0.72);
+  --field-focus: #ffffff;
+  --chrome: color-mix(in srgb, var(--bg-2) 72%, transparent);
+  --chrome-2: color-mix(in srgb, var(--bg-1) 58%, transparent);
+  --popover: color-mix(in srgb, var(--bg-2) 85%, #fff 15%);
+  --modal-top: color-mix(in srgb, var(--bg-2) 70%, #fff 30%);
+  --modal-bottom: color-mix(in srgb, var(--bg-1) 80%, #fff 20%);
+  --scrim: rgba(15, 23, 42, 0.26);
+  --icon-btn: rgba(255, 255, 255, 0.72);
+  --toggle-off: rgba(15, 23, 42, 0.13);
+
+  --glow-a: 0.3;
+  --glow-b: 0.28;
+  --glow-c: 0.22;
+  --vignette: rgba(255, 255, 255, 0);
+  --grain: 0.02;
+
+  --ok-ink: #15803d;
+  --live-ink: #b91c1c;
+  --danger-ink: #b91c1c;
+  --private-ink: #6d28d9;
+  --private: #7c3aed;
+  --private-rgb: 124, 58, 237;
+
+  --shadow-1: 0 2px 10px rgba(15, 23, 42, 0.08);
+  --shadow-2: 0 16px 40px rgba(15, 23, 42, 0.13);
+  --shadow-3: 0 28px 70px rgba(15, 23, 42, 0.2);
+
+  --scroll-thumb: rgba(15, 23, 42, 0.14);
+  --scroll-thumb-hover: rgba(15, 23, 42, 0.26);
 }
 
-:root[data-theme='obsidian'] {
-  --bg-0: #070707;
-  --bg-1: #0d0d0d;
-  --bg-2: #121212;
+/* Over artwork (posters, the detail backdrop in dark mode) the dark
+   tokens always apply, whatever the mode — text sits on an image there. */
+.on-art {
+  --text-0: #f4f6fb;
+  --text-1: rgba(255, 255, 255, 0.78);
+  --text-2: rgba(255, 255, 255, 0.58);
+  --stroke: rgba(255, 255, 255, 0.12);
+  --stroke-2: rgba(255, 255, 255, 0.2);
+  --icon-btn: rgba(0, 0, 0, 0.42);
+  --ok-ink: #bbf7d0;
+  --live-ink: #fecaca;
+  --danger-ink: #fecaca;
+  --private-ink: #ddd6fe;
+  --private: #a78bfa;
+  --private-rgb: 167, 139, 250;
 }
 
 :root[data-poster='sm'] {
@@ -126,6 +220,10 @@ select {
   outline-offset: 2px;
 }
 
+::selection {
+  background: rgba(var(--accent-rgb), 0.32);
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -134,18 +232,35 @@ select {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--scroll-thumb);
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--scroll-thumb-hover);
   background-clip: content-box;
 }
 
 .muted {
   color: var(--text-2);
+}
+
+kbd,
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-0);
+  background: linear-gradient(180deg, var(--surface-3), var(--surface));
+  border: 1px solid var(--stroke-2);
+  border-bottom-width: 2px;
+  border-radius: 7px;
 }
 
 /* ---------------------------------------------------------- buttons */
@@ -166,33 +281,39 @@ select {
     background var(--dur-1) var(--ease),
     border-color var(--dur-1) var(--ease),
     color var(--dur-1) var(--ease),
-    box-shadow var(--dur-2) var(--ease);
+    box-shadow var(--dur-2) var(--ease),
+    opacity var(--dur-1) var(--ease);
 }
 
-.btn--primary {
-  color: #04121c;
-  background: linear-gradient(135deg, var(--accent), rgba(var(--accent-rgb), 0.72));
+/* Accent fills mix in the theme's glow for a two-tone sheen. */
+.btn--primary,
+.btn--play {
+  color: var(--on-accent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 72%, rgb(var(--glow-1))));
   box-shadow:
-    0 6px 18px rgba(var(--accent-rgb), 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 6px 18px rgba(var(--accent-rgb), 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 .btn--primary:hover {
   box-shadow:
-    0 10px 28px rgba(var(--accent-rgb), 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 10px 28px rgba(var(--accent-rgb), 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
 }
 
 .btn--ghost {
   color: var(--text-0);
   background: var(--surface);
   border: 1px solid var(--stroke);
+  backdrop-filter: blur(12px);
 }
-.btn--ghost:hover {
+.btn--ghost:hover:not(:disabled) {
   background: var(--surface-2);
   border-color: var(--stroke-2);
 }
 .btn--ghost.is-active {
-  color: var(--accent);
+  color: var(--accent-ink);
   border-color: rgba(var(--accent-rgb), 0.4);
   background: rgba(var(--accent-rgb), 0.12);
 }
@@ -206,9 +327,15 @@ select {
   border: 1px solid var(--stroke);
   border-radius: var(--r-sm);
 }
-.btn--soft:hover {
+.btn--soft:hover:not(:disabled) {
   color: var(--text-0);
   background: var(--surface-2);
+}
+
+.btn--icon {
+  width: 34px;
+  padding: 0;
+  flex: none;
 }
 
 .btn--block {
@@ -234,16 +361,23 @@ select {
   height: 46px;
   padding: 0 26px;
   font-size: 14px;
-  color: #04121c;
-  background: linear-gradient(135deg, var(--accent), rgba(var(--accent-rgb), 0.7));
   box-shadow:
-    0 8px 24px rgba(var(--accent-rgb), 0.3),
+    0 8px 26px rgba(var(--accent-rgb), 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.btn--play.is-running {
+  color: var(--live-ink);
+  background: rgba(248, 113, 113, 0.14);
+  border: 1px solid rgba(248, 113, 113, 0.32);
+  box-shadow: none;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
+}
+.btn--play.is-running:disabled {
+  opacity: 1;
 }
 
 /* ---------------------------------------------------------- inputs */
@@ -253,7 +387,7 @@ select {
   height: 40px;
   padding: 0 13px;
   color: var(--text-0);
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--field);
   border: 1px solid var(--stroke);
   border-radius: var(--r-md);
   transition:
@@ -269,7 +403,12 @@ select {
   outline: none;
   border-color: rgba(var(--accent-rgb), 0.55);
   box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--field-focus);
+}
+
+.input--mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
 }
 
 .input--area {
@@ -277,17 +416,6 @@ select {
   padding: 11px 13px;
   resize: vertical;
   line-height: 1.55;
-}
-
-.input--select {
-  height: 34px;
-  width: auto;
-  min-width: 88px;
-  cursor: pointer;
-}
-.input--select option {
-  background: var(--bg-2);
-  color: var(--text-0);
 }
 
 .field {
@@ -307,14 +435,8 @@ select {
 }
 .field--row {
   flex-direction: row;
-  gap: 10px;
+  gap: 10px 18px;
   flex-wrap: wrap;
-}
-.field--inline {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
 }
 
 /* ------------------------------------------------------------ chips */
@@ -330,32 +452,32 @@ select {
   letter-spacing: 0.02em;
   border-radius: 999px;
   border: 1px solid var(--stroke);
-  background: rgba(0, 0, 0, 0.42);
+  background: var(--icon-btn);
   color: var(--text-1);
   backdrop-filter: blur(8px);
 }
 .chip--ok {
-  color: #bbf7d0;
-  border-color: rgba(74, 222, 128, 0.28);
-  background: rgba(74, 222, 128, 0.12);
+  color: var(--ok-ink);
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.14);
 }
 .chip--muted {
   color: var(--text-2);
 }
 .chip--accent {
-  color: var(--accent);
-  border-color: rgba(var(--accent-rgb), 0.32);
-  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent-ink);
+  border-color: rgba(var(--accent-rgb), 0.34);
+  background: rgba(var(--accent-rgb), 0.13);
 }
 .chip--live {
-  color: #fecaca;
-  border-color: rgba(248, 113, 113, 0.32);
-  background: rgba(248, 113, 113, 0.12);
+  color: var(--live-ink);
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(248, 113, 113, 0.14);
 }
 .chip--hidden {
-  color: #ddd6fe;
-  border-color: rgba(var(--private-rgb), 0.32);
-  background: rgba(var(--private-rgb), 0.14);
+  color: var(--private-ink);
+  border-color: rgba(var(--private-rgb), 0.34);
+  background: rgba(var(--private-rgb), 0.15);
 }
 .chip-dot {
   width: 5px;
@@ -366,6 +488,7 @@ select {
 }
 
 .live-dot {
+  flex: none;
   width: 7px;
   height: 7px;
   border-radius: 999px;
@@ -396,7 +519,7 @@ select {
   height: 32px;
   border-radius: 10px;
   color: var(--text-1);
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--icon-btn);
   border: 1px solid var(--stroke);
   backdrop-filter: blur(10px);
   transition:
@@ -411,9 +534,12 @@ select {
   border-color: rgba(var(--accent-rgb), 0.4);
 }
 .icon-btn.is-on {
-  color: var(--accent);
+  color: var(--accent-ink);
   border-color: rgba(var(--accent-rgb), 0.45);
   background: rgba(var(--accent-rgb), 0.16);
+}
+.on-art .icon-btn.is-on {
+  color: var(--accent);
 }
 .icon-btn--private.is-on {
   color: var(--private);
@@ -421,7 +547,7 @@ select {
   background: rgba(var(--private-rgb), 0.16);
 }
 .icon-btn--danger:hover {
-  color: #fecaca;
+  color: var(--danger-ink);
   background: rgba(239, 68, 68, 0.22);
   border-color: rgba(239, 68, 68, 0.45);
 }
@@ -448,17 +574,18 @@ select {
   width: 38px;
   height: 22px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--toggle-off);
   border: 1px solid var(--stroke);
   transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
 }
 .toggle.is-on .toggle-track {
-  background: rgba(var(--accent-rgb), 0.42);
-  border-color: rgba(var(--accent-rgb), 0.6);
+  background: var(--accent);
+  border-color: transparent;
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.35);
 }
 .toggle--private.is-on .toggle-track {
-  background: rgba(var(--private-rgb), 0.42);
-  border-color: rgba(var(--private-rgb), 0.6);
+  background: var(--private);
+  box-shadow: 0 0 14px rgba(var(--private-rgb), 0.35);
 }
 .toggle-thumb {
   position: absolute;
@@ -468,7 +595,7 @@ select {
   height: 16px;
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 .toggle.is-on .toggle-thumb {
   left: auto;
@@ -478,14 +605,19 @@ select {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 .toggle-label {
   color: var(--text-0);
+  font-size: 13px;
   font-weight: 500;
 }
 .toggle-hint {
   font-size: 11.5px;
   color: var(--text-2);
+}
+.toggle-hint.is-error {
+  color: var(--danger);
 }
 
 /* ------------------------------------------------------ boot screen */
@@ -498,7 +630,8 @@ select {
   align-items: center;
   justify-content: center;
   gap: 18px;
-  background: var(--bg-0);
+  background: radial-gradient(120% 90% at 50% -10%, var(--bg-2) 0%, var(--bg-1) 42%, var(--bg-0) 100%);
+  -webkit-app-region: drag;
 }
 .boot-mark {
   display: grid;
@@ -506,8 +639,8 @@ select {
   width: 62px;
   height: 62px;
   border-radius: 20px;
-  color: #04121c;
-  background: linear-gradient(135deg, var(--accent), rgba(var(--accent-rgb), 0.65));
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 65%, rgb(var(--glow-1))));
   box-shadow: 0 12px 40px rgba(var(--accent-rgb), 0.32);
 }
 .boot-bolt {

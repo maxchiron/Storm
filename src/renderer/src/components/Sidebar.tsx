@@ -10,7 +10,6 @@ import {
   CheckIcon,
   ClockIcon,
   EyeOffIcon,
-  FolderIcon,
   GridIcon,
   HeartIcon,
   PlayIcon,

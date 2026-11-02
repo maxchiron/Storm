@@ -14,15 +14,23 @@ export default function ToastHost(): React.JSX.Element {
           <motion.div
             key={toast.id}
             className={`toast toast--${toast.type}`}
+            role={toast.type === 'error' ? 'alert' : 'status'}
             layout
             initial={{ opacity: 0, x: 40, scale: 0.94 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 30, scale: 0.94 }}
             transition={SPRING_SOFT}
           >
-            <span className="toast-icon">{toast.type === 'success' ? <CheckIcon size={14} /> : null}</span>
+            <span className="toast-icon">
+              {toast.type === 'success' ? <CheckIcon size={14} /> : toast.type === 'error' ? '!' : null}
+            </span>
             <span className="toast-text">{toast.message}</span>
-            <button type="button" className="icon-btn icon-btn--sm" onClick={() => dismiss(toast.id)}>
+            <button
+              type="button"
+              className="icon-btn icon-btn--sm"
+              onClick={() => dismiss(toast.id)}
+              aria-label="Dismiss"
+            >
               <CloseIcon size={13} />
             </button>
           </motion.div>

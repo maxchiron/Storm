@@ -31,7 +31,32 @@
     border-color var(--dur-2) var(--ease);
 }
 
-.card:hover .card-poster {
+/* A streak of light sweeps across the poster as you hover it. */
+.card-poster::after {
+  content: '';
+  position: absolute;
+  inset: -20% -60%;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.16) 47%,
+    rgba(255, 255, 255, 0.05) 52%,
+    transparent 60%
+  );
+  transform: translateX(-60%);
+  opacity: 0;
+  transition:
+    transform 0.9s var(--ease),
+    opacity 0.3s var(--ease);
+}
+.card:hover .card-poster::after {
+  transform: translateX(60%);
+  opacity: 1;
+}
+
+.card:hover .card-poster,
+.card:focus-visible .card-poster {
   border-color: rgba(var(--accent-rgb), 0.32);
   box-shadow:
     var(--shadow-3),
@@ -54,7 +79,10 @@
   filter: grayscale(0.9) brightness(0.58);
 }
 .card.is-missing .card-poster {
-  border-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--stroke);
+}
+.card:focus-visible {
+  outline: none;
 }
 
 .card-fallback {
@@ -112,14 +140,18 @@
   transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
 }
 .card:hover .card-fav,
+.card:focus-within .card-fav,
 .card-fav.is-on,
 .card:hover .card-hide,
+.card:focus-within .card-hide,
 .card-hide.is-on {
   opacity: 1;
   transform: none;
 }
 .card-fav.is-on {
   color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(0, 0, 0, 0.5);
 }
 .card-hide.is-on {
   color: var(--private);
@@ -177,7 +209,8 @@
   opacity: 0;
   transition: opacity var(--dur-2) var(--ease);
 }
-.card:hover .card-overlay {
+.card:hover .card-overlay,
+.card:focus-within .card-overlay {
   opacity: 1;
 }
 
@@ -187,8 +220,8 @@
   width: 52px;
   height: 52px;
   border-radius: 999px;
-  color: #04121c;
-  background: linear-gradient(135deg, var(--accent), rgba(var(--accent-rgb), 0.7));
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, rgb(var(--glow-1))));
   box-shadow:
     0 10px 30px rgba(var(--accent-rgb), 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
@@ -198,9 +231,16 @@
     transform var(--dur-2) var(--ease),
     opacity var(--dur-2) var(--ease);
 }
-.card:hover .card-play {
+.card:hover .card-play,
+.card:focus-within .card-play {
   transform: none;
   opacity: 1;
+}
+.card-play:disabled {
+  cursor: default;
+  color: var(--live-ink);
+  background: rgba(20, 8, 10, 0.7);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.4);
 }
 
 .card-actions {
@@ -212,7 +252,8 @@
     transform var(--dur-2) var(--ease),
     opacity var(--dur-2) var(--ease);
 }
-.card:hover .card-actions {
+.card:hover .card-actions,
+.card:focus-within .card-actions {
   transform: none;
   opacity: 1;
 }

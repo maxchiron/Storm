@@ -1,4 +1,4 @@
-import type { FilterKey, Game, SortKey } from '@shared/types'
+import type { FilterKey, Game, Language, SortKey } from '@shared/types'
 
 export function countByFilter(games: Game[]): Record<FilterKey, number> {
   const counts: Record<FilterKey, number> = {
@@ -63,19 +63,35 @@ export function applyFilter(games: Game[], filter: FilterKey, query: string): Ga
   })
 }
 
-export function applySort(games: Game[], sort: SortKey): Game[] {
+const collators = new Map<string, Intl.Collator>()
+
+/** Natural, language-aware title order: "Game 2" before "Game 10", 中文 by pinyin. */
+function titleCollator(language: Language): Intl.Collator {
+  const locale = language === 'zh' ? 'zh-CN' : 'en'
+  let collator = collators.get(locale)
+  if (!collator) {
+    collator = new Intl.Collator(locale, { numeric: true, sensitivity: 'base' })
+    collators.set(locale, collator)
+  }
+  return collator
+}
+
+export function applySort(games: Game[], sort: SortKey, language: Language = 'en'): Game[] {
+  const collator = titleCollator(language)
+  const byTitle = (a: Game, b: Game): number => collator.compare(a.title, b.title)
   const list = [...games]
+  // Every order falls back to the title, so ties never shuffle between renders.
   switch (sort) {
     case 'title':
-      return list.sort((a, b) => a.title.localeCompare(b.title))
+      return list.sort(byTitle)
     case 'addedAt':
-      return list.sort((a, b) => b.addedAt.localeCompare(a.addedAt))
+      return list.sort((a, b) => b.addedAt.localeCompare(a.addedAt) || byTitle(a, b))
     case 'lastPlayed':
-      return list.sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''))
+      return list.sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? '') || byTitle(a, b))
     case 'playtime':
-      return list.sort((a, b) => b.playtimeMinutes - a.playtimeMinutes)
+      return list.sort((a, b) => b.playtimeMinutes - a.playtimeMinutes || byTitle(a, b))
     case 'playCount':
-      return list.sort((a, b) => b.playCount - a.playCount)
+      return list.sort((a, b) => b.playCount - a.playCount || byTitle(a, b))
     default:
       return list
   }
@@ -83,10 +99,6 @@ export function applySort(games: Game[], sort: SortKey): Game[] {
 
 export function totalPlaytime(games: Game[]): number {
   return games.reduce((sum, g) => sum + g.playtimeMinutes, 0)
-}
-
-export function totalSessions(games: Game[]): number {
-  return games.reduce((sum, g) => sum + g.playCount, 0)
 }
 
 /** The games the owner can see — hidden ones stay out of the library. */
