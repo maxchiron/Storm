@@ -316,6 +316,8 @@ function main() {
   const defines = [
     `-DAPP_NAME=${pkg.productName ?? 'Storm'}`,
     `-DAPP_VERSION=${pkg.version}`,
+    // The executable's version resource takes numbers only: "1.0.5-test" → "1.0.5".
+    `-DAPP_VERSION_NUMERIC=${pkg.version.replace(/[-+].*$/, '')}`,
     '-DAPP_EXE=Storm.exe',
     '-DAPP_DESCRIPTION=Storm 本地游戏库',
     `-DAPP_PUBLISHER=${pkg.author ?? 'Storm'}`,

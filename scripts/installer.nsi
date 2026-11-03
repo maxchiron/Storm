@@ -21,6 +21,10 @@ Unicode true
 !ifndef APP_VERSION
   !define APP_VERSION "1.0.0"
 !endif
+; VIProductVersion only takes X.X.X.X, so a pre-release ("1.0.5-test") passes its numbers separately.
+!ifndef APP_VERSION_NUMERIC
+  !define APP_VERSION_NUMERIC "${APP_VERSION}"
+!endif
 !ifndef APP_EXE
   !define APP_EXE "Storm.exe"
 !endif
@@ -45,7 +49,7 @@ RequestExecutionLevel user
 ; stub itself is compressed lightly — that keeps the build fast.
 SetCompressor zlib
 
-VIProductVersion "${APP_VERSION}.0"
+VIProductVersion "${APP_VERSION_NUMERIC}.0"
 VIAddVersionKey /LANG=2052 "ProductName" "${APP_NAME}"
 VIAddVersionKey /LANG=2052 "FileDescription" "${APP_DESCRIPTION}"
 VIAddVersionKey /LANG=2052 "FileVersion" "${APP_VERSION}"
