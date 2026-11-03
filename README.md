@@ -26,8 +26,11 @@ flips from **Installed** to **Not installed** and the poster desaturates. You
 keep the record of the game even after the files are gone.
 
 **Real playtime.** Press *Play* in Storm and it launches the `.exe`, watches the
-process, and accumulates genuine play time, session count and a last-played
-date. Your library becomes an actual gaming log, not a folder of shortcuts.
+game, and accumulates genuine play time, session count and a last-played
+date. A game counts as running while anything started from its folder runs,
+so a launcher that hands over to the real game (or a restart through Steam)
+is still counted to the end. Your library becomes an actual gaming log, not a
+folder of shortcuts.
 
 **Everything about a game in one place.** Cover art, wallpaper, executable
 path, install location, save location, tags and notes.
@@ -67,7 +70,7 @@ top, including a custom colour.
 |---|---|
 | **Poster wall** | Responsive grid, per-game hover animations, staggered entrance, shared-element transition into the detail page |
 | **Live install detection** | `fs.watch` on the parent folder plus a polling safety net — the badge updates the moment you delete a game |
-| **Playtime tracking** | Process tracking with a Windows fallback for launchers that spawn and exit immediately |
+| **Playtime tracking** | Follows every process from the game's folder, so launchers, the games they start and Steam restarts all count |
 | **Add / edit / delete** | Native file pickers for `.exe`, install folder and save folder; launch options; posters and wallpapers are copied into the library |
 | **Filters & search** | All · Installed · Not installed · Played · Unplayed · Favorites, with live search across title, tags and notes |
 | **Hidden games** | A private shelf: hidden games leave the wall, the counts and the search results, and only come back when you unhide them |
@@ -186,6 +189,7 @@ src/
 │   ├── store.ts     JSON persistence (atomic writes)
 │   ├── watcher.ts   live install-folder detection
 │   ├── launcher.ts  process launching + playtime tracking
+│   ├── processes.ts running processes and their executables (for tracking)
 │   ├── winshell.ts  starting a game through the shell (UAC), like Explorer
 │   ├── media.ts     poster / wallpaper import (file, bytes, URL) and serving
 │   ├── gamefile.ts  what a dropped .exe / .lnk is: title, folder, arguments
