@@ -5,9 +5,14 @@ import fsp from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import { store } from './store'
+import { log } from './log'
+import { shellStart } from './winshell'
 import type { Game, LaunchError, RunningSession, SessionEvent, SessionRecord } from '@shared/types'
 
 const execFileAsync = promisify(execFile)
+
+/** A launched process that ends sooner than this was a launcher or a stub, not the game. */
+const STUB_MS = 15_000
 
 interface ActiveSession {
   gameId: string
@@ -19,6 +24,14 @@ interface ActiveSession {
 export type SessionListener = (running: RunningSession[]) => void
 export type SessionEventListener = (payload: SessionEvent) => void
 export type LaunchResult = { ok: true } | { ok: false; error: LaunchError }
+
+/** What to actually start for a game. */
+interface Command {
+  file: string
+  args: string[]
+  cwd: string
+  shell: boolean
+}
 
 /**
  * Split a Windows-style argument string: whitespace separates arguments,
@@ -98,7 +111,7 @@ export class Launcher {
   }
 
   /** Work out what to actually spawn for a game's executable. */
-  private async command(game: Game): Promise<{ file: string; args: string[]; cwd: string; shell: boolean } | null> {
+  private async command(game: Game): Promise<Command | null> {
     const exePath = game.exePath
     if (!exePath) return null
     const extra = splitArgs(game.args)
@@ -142,7 +155,7 @@ export class Launcher {
     if (this.active.has(game.id) || this.pending.has(game.id)) return { ok: false, error: 'ALREADY_RUNNING' }
 
     this.pending.add(game.id)
-    let child: ChildProcess
+    let child: ChildProcess | null
     let exePath: string
     try {
       try {
@@ -155,26 +168,19 @@ export class Launcher {
       if (!cmd) return { ok: false, error: 'NO_EXE' }
       exePath = cmd.shell ? game.exePath : cmd.file
 
-      try {
-        child = spawn(cmd.file, cmd.args, {
-          cwd: cmd.cwd,
-          detached: false,
-          stdio: 'ignore',
-          windowsHide: false,
-          shell: cmd.shell
-        })
-      } catch {
-        return { ok: false, error: 'SPAWN_FAILED' }
+      child = await this.spawnGame(game.title, cmd)
+      if (!child) {
+        // What CreateProcess refuses — a game set to run as administrator,
+        // above all — the shell can still start, with a UAC prompt, the way
+        // a double-click in Explorer does (see winshell.ts).
+        if (process.platform !== 'win32' || cmd.shell) return { ok: false, error: 'SPAWN_FAILED' }
+        const error = await shellStart(cmd.file, cmd.args, cmd.cwd)
+        if (error) {
+          log('launch', `${game.title}: the shell could not start it either`, error)
+          return { ok: false, error: 'SPAWN_FAILED' }
+        }
+        log('launch', `${game.title}: started through the shell`)
       }
-
-      // A missing or blocked executable fails *after* spawn() returns, through
-      // the 'error' event. Wait for the outcome so a failed launch is reported
-      // as one — and never counted as a play session.
-      const started = await new Promise<boolean>((resolve) => {
-        child.once('spawn', () => resolve(true))
-        child.once('error', () => resolve(false))
-      })
-      if (!started) return { ok: false, error: 'SPAWN_FAILED' }
     } finally {
       this.pending.delete(game.id)
     }
@@ -183,7 +189,7 @@ export class Launcher {
       gameId: game.id,
       exePath,
       startedAt: new Date().toISOString(),
-      pid: child.pid ?? null
+      pid: child?.pid ?? null
     }
     this.active.set(game.id, session)
     this.emitRunning()
@@ -198,10 +204,16 @@ export class Launcher {
       this.finish(session, interrupted)
     }
 
+    if (!child) {
+      // Started by the shell: there is no process of ours to wait for, only the game's own.
+      void this.awaitProcessTree(session, finalize)
+      return { ok: true }
+    }
+
     child.on('error', () => finalize(false))
     child.on('exit', () => {
       const elapsed = Date.now() - new Date(session.startedAt).getTime()
-      if (process.platform === 'win32' && elapsed < 15_000) {
+      if (process.platform === 'win32' && elapsed < STUB_MS) {
         // Many launchers start the real game and exit immediately. Give the
         // process a moment, then keep counting while the game is alive.
         void this.awaitProcessTree(session, finalize)
@@ -211,6 +223,34 @@ export class Launcher {
     })
 
     return { ok: true }
+  }
+
+  /**
+   * spawn() and wait for the outcome: a missing or blocked executable fails
+   * *after* spawn() returns, through the 'error' event. Waiting means a failed
+   * launch is reported as one — and never counted as a play session.
+   */
+  private async spawnGame(title: string, cmd: Command): Promise<ChildProcess | null> {
+    let child: ChildProcess
+    try {
+      child = spawn(cmd.file, cmd.args, {
+        cwd: cmd.cwd,
+        detached: false,
+        stdio: 'ignore',
+        windowsHide: false,
+        shell: cmd.shell
+      })
+    } catch (err) {
+      log('launch', `${title}: could not start ${cmd.file}`, err)
+      return null
+    }
+    const error = await new Promise<unknown>((resolve) => {
+      child.once('spawn', () => resolve(null))
+      child.once('error', (err) => resolve(err))
+    })
+    if (!error) return child
+    log('launch', `${title}: could not start ${cmd.file}`, error)
+    return null
   }
 
   /** On Windows, poll tasklist until the game image disappears. */

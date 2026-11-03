@@ -186,6 +186,7 @@ src/
 │   ├── store.ts     JSON persistence (atomic writes)
 │   ├── watcher.ts   live install-folder detection
 │   ├── launcher.ts  process launching + playtime tracking
+│   ├── winshell.ts  starting a game through the shell (UAC), like Explorer
 │   ├── media.ts     poster / wallpaper import (file, bytes, URL) and serving
 │   ├── gamefile.ts  what a dropped .exe / .lnk is: title, folder, arguments
 │   ├── pe.ts        reads version info (ProductName…) from executables
