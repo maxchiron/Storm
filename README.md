@@ -56,6 +56,14 @@ the keyboard and Xbox-style controllers (XInput) directly, so the shortcuts
 work while the game has focus; if a shot fails, the card says so and
 `storm.log` in the data folder says why.
 
+**HDR screenshots that look right.** With HDR on, Windows hands ordinary
+screen capture a picture cut off at SDR white, so HDR games come out blown
+out. Storm reads an HDR screen in full instead (DXGI, in half floats) and
+turns it into a normal PNG/JPEG: SDR content — the desktop, SDR games — comes
+out exactly as it looked, at whatever "SDR content brightness" Windows is set
+to, and an HDR game's highlights are rolled off smoothly (the BT.2390 curve
+TVs use) rather than clipped. Screens in SDR are captured as before.
+
 **Themes.** Six themes — Storm, Aurora, Nebula, Synthwave, Ember, Obsidian —
 each in a dark and a light version, or following Windows. Pick any accent on
 top, including a custom colour.
@@ -77,7 +85,7 @@ top, including a custom colour.
 | **Sorting** | Title, date added, last played, playtime, sessions |
 | **Detail page** | Wallpaper backdrop, path rows with reveal-in-folder and copy, tags, notes, install status |
 | **Drag & paste** | Drop `.exe` / `.lnk` files to add games (several at once), drop or paste images for posters and wallpapers |
-| **Screenshots** | Global hotkey and controller combo, per-game folders, in-game "saved" card, shutter sound, gallery on the detail page |
+| **Screenshots** | Global hotkey and controller combo, per-game folders, in-game "saved" card, shutter sound, gallery on the detail page, correct colours on HDR screens |
 | **Themes** | Six themes in dark and light, "follow Windows", accent swatches plus a custom colour |
 | **Settings** | Language, theme, accent, poster size, screenshot shortcuts, tray behaviour, detection interval, motion reduction, JSON import/export |
 | **System tray** | Minimise to tray, live accent-coloured icon, quick access |
@@ -196,6 +204,11 @@ src/
 │   ├── pe.ts        reads version info (ProductName…) from executables
 │   ├── lnk.ts       reads Windows shortcut files
 │   ├── screenshot.ts screenshot hotkey, capture and gallery
+│   ├── hdrcapture.ts runs the capture process for HDR screens
+│   ├── capture-process.ts that process (an Electron utility process)
+│   ├── dxgi.ts      reads an HDR screen through D3D11/DXGI (via koffi)
+│   ├── tonemap.ts   HDR frame → SDR picture (BT.2390 roll-off, sRGB)
+│   ├── com.ts       calling COM objects through koffi
 │   ├── wininput.ts  keyboard and XInput state for the shortcuts (via koffi)
 │   ├── log.ts       storm.log
 │   ├── normalize.ts validation of everything read from disk or the renderer

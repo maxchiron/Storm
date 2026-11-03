@@ -48,7 +48,13 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: { alias: { '@shared': shared } },
     build: {
-      rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } }
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          // Runs in a utility process of its own; see src/main/capture-process.ts.
+          'capture-process': resolve(__dirname, 'src/main/capture-process.ts')
+        }
+      }
     }
   },
   preload: {

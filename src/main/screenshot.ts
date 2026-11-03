@@ -3,10 +3,12 @@ import {
   BrowserWindow,
   desktopCapturer,
   globalShortcut,
+  nativeImage,
   screen,
   shell,
   type Display,
-  type NativeImage
+  type NativeImage,
+  type Rectangle
 } from 'electron'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
@@ -15,6 +17,7 @@ import { store } from './store'
 import { launcher } from './launcher'
 import { removeImage, writeImage } from './media'
 import { log } from './log'
+import { hdrCapture } from './hdrcapture'
 import { padMask, parseAccelerator, ShortcutWatcher } from './wininput'
 import { translate, type TranslationKey } from '@shared/i18n'
 import type {
@@ -40,6 +43,11 @@ import type {
  *
  * Storm keeps a small preview of each one so the game's detail page can show
  * a gallery; the full-size files are the user's and are never deleted.
+ *
+ * A screen with HDR on is read in full through the capture process and its
+ * highlights rolled off into the picture (hdrcapture.ts, tonemap.ts); the
+ * ordinary capture would cut them off at SDR white. SDR screens, and any HDR
+ * capture that fails, go through desktopCapturer as before.
  */
 
 const RESERVED_NAMES = /^(con|prn|aux|nul|com\d|lpt\d)$/i
@@ -76,6 +84,20 @@ function timestamp(d: Date): string {
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+}
+
+/** The display's bounds in physical pixels, which is how Windows names screens. */
+function physicalBounds(display: Display): Rectangle {
+  // Only Windows has dipToScreenRect, which also gets mixed-DPI layouts right.
+  if (typeof screen.dipToScreenRect === 'function') return screen.dipToScreenRect(null, display.bounds)
+  const scale = display.scaleFactor || 1
+  const { x, y, width, height } = display.bounds
+  return {
+    x: Math.round(x * scale),
+    y: Math.round(y * scale),
+    width: Math.round(width * scale),
+    height: Math.round(height * scale)
+  }
 }
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -253,10 +275,19 @@ export class ScreenshotService {
     this.registered = null
     this.watcher?.stop()
     this.closeOverlay()
+    hdrCapture.dispose()
   }
 
   /** Capture the screen under the pointer — where a running game almost always is. */
   private async grab(display: Display): Promise<NativeImage | null> {
+    if (hdrCapture.usable) {
+      // Whatever goes wrong on the HDR path, the ordinary capture is still there.
+      const grabbed = await this.grabHdr(display).catch((err: unknown) => {
+        log('shot', 'HDR capture failed, taking an ordinary one', err)
+        return null
+      })
+      if (grabbed) return grabbed
+    }
     const scale = display.scaleFactor || 1
     const thumbnailSize = {
       width: Math.round(display.size.width * scale),
@@ -276,6 +307,21 @@ export class ScreenshotService {
       log('shot', 'desktopCapturer failed', err)
       return null
     }
+  }
+
+  /** The screen through the capture process if it is in HDR; null for SDR screens and failures. */
+  private async grabHdr(display: Display): Promise<NativeImage | null> {
+    const reply = await hdrCapture.capture(physicalBounds(display))
+    if (reply.kind === 'failed') log('shot', `HDR capture failed, taking an ordinary one: ${reply.reason}`)
+    if (reply.kind !== 'image') return null
+    log(
+      'shot',
+      `HDR screen ${reply.device}: SDR white ${Math.round(reply.sdrWhiteNits)} nits, ` +
+        `brightest ${Math.round(reply.peakNits)} nits${reply.toneMapped ? ', highlights rolled off' : ''} (${reply.ms} ms)`
+    )
+    const pixels = Buffer.from(reply.pixels.buffer, reply.pixels.byteOffset, reply.pixels.byteLength)
+    const image = nativeImage.createFromBitmap(pixels, { width: reply.width, height: reply.height })
+    return image.isEmpty() ? null : image
   }
 
   /**
