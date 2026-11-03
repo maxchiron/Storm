@@ -1,4 +1,5 @@
 import { grabScreen, type Rect } from './dxgi'
+import { encodeJxr } from './jxr'
 import { toneMap } from './tonemap'
 
 /**
@@ -13,12 +14,16 @@ import { toneMap } from './tonemap'
  *
  * Each request names a screen by its physical-pixel rectangle; the answer is
  * the finished 8-bit picture, word that the screen is SDR (the ordinary
- * capture is right for those), or why it failed.
+ * capture is right for those), or why it failed. Asked to keep HDR, it also
+ * encodes the screen as it is into JPEG XR (jxr.ts) — the 8-bit picture still
+ * comes along, for the gallery preview and the on-screen card.
  */
 
 export interface CaptureRequest {
   id: number
   rect: Rect
+  /** Also return an HDR screen as JPEG XR. */
+  keepHdr: boolean
 }
 
 export type CaptureReply =
@@ -33,18 +38,31 @@ export type CaptureReply =
       sdrWhiteNits: number
       peakNits: number
       toneMapped: boolean
+      /** The screen as JPEG XR, when keepHdr was asked for and it could be made. */
+      jxr: Uint8Array | null
+      /** Why there is no JPEG XR although one was asked for. */
+      jxrError: string | null
       ms: number
     }
   | { id: number; kind: 'sdr'; device: string }
   | { id: number; kind: 'failed'; reason: string }
 
-function handle({ id, rect }: CaptureRequest): CaptureReply {
+function handle({ id, rect, keepHdr }: CaptureRequest): CaptureReply {
   const started = Date.now()
   try {
     const grab = grabScreen(rect)
     if (grab.kind === 'sdr') return { id, kind: 'sdr', device: grab.device }
     const image = toneMap(grab.frame)
     if (image.blank) return { id, kind: 'failed', reason: `${grab.device} gave an empty frame` }
+    let jxr: Uint8Array | null = null
+    let jxrError: string | null = null
+    if (keepHdr) {
+      try {
+        jxr = encodeJxr(grab.frame)
+      } catch (err) {
+        jxrError = err instanceof Error ? err.message : String(err)
+      }
+    }
     return {
       id,
       kind: 'image',
@@ -55,6 +73,8 @@ function handle({ id, rect }: CaptureRequest): CaptureReply {
       sdrWhiteNits: grab.frame.sdrWhiteNits,
       peakNits: image.peakNits,
       toneMapped: image.toneMapped,
+      jxr,
+      jxrError,
       ms: Date.now() - started
     }
   } catch (err) {

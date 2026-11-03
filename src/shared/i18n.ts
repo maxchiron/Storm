@@ -136,6 +136,12 @@ export const en = {
   'settings.shotFormat': 'Format',
   'settings.shotFormatPng': 'PNG · lossless',
   'settings.shotFormatJpg': 'JPG · smaller',
+  'settings.shotHdr': 'When HDR is on',
+  'settings.shotHdrSdr': 'Remap to SDR',
+  'settings.shotHdrJxr': 'Keep HDR · JPEG XR',
+  'settings.shotHdrSdrHint': 'Saved in the format above, highlights rolled off — looks right in any app.',
+  'settings.shotHdrJxrHint':
+    'Saved as .jxr with the full brightness range — view it in Windows Photos on an HDR screen. Screens without HDR still use the format above.',
   'settings.shotSound': 'Shutter sound',
   'settings.shotNotify': 'Show a “saved” card on screen',
   'settings.record': 'Change',
@@ -248,6 +254,7 @@ export const en = {
   'tray.quit': 'Quit Storm',
 
   'shot.saved': 'Screenshot saved',
+  'shot.savedHdr': 'HDR screenshot saved',
   'shot.desktop': 'Desktop',
   'shot.failed': 'Screenshot failed',
   'shot.captureFailed': "The screen couldn't be captured",
@@ -391,6 +398,12 @@ export const zh: Record<TranslationKey, string> = {
   'settings.shotFormat': '格式',
   'settings.shotFormatPng': 'PNG · 无损',
   'settings.shotFormatJpg': 'JPG · 体积小',
+  'settings.shotHdr': '开启 HDR 时',
+  'settings.shotHdrSdr': '转换为 SDR',
+  'settings.shotHdrJxr': '保留 HDR · JPEG XR',
+  'settings.shotHdrSdrHint': '按上面的格式保存，高光柔和压缩，任何软件中看起来都正确。',
+  'settings.shotHdrJxrHint':
+    '保存为 .jxr，保留完整亮度范围，请在 HDR 屏幕上用 Windows「照片」查看。未开启 HDR 的屏幕仍按上面的格式保存。',
   'settings.shotSound': '快门音效',
   'settings.shotNotify': '截图后在屏幕上显示提示卡片',
   'settings.record': '修改',
@@ -502,6 +515,7 @@ export const zh: Record<TranslationKey, string> = {
   'tray.quit': '退出 Storm',
 
   'shot.saved': '截图已保存',
+  'shot.savedHdr': 'HDR 截图已保存',
   'shot.desktop': '桌面',
   'shot.failed': '截图失败',
   'shot.captureFailed': '无法捕获屏幕画面',

@@ -6,6 +6,8 @@ export type AppearanceMode = 'dark' | 'light' | 'system'
 /** The scheme actually on screen once `system` has been resolved. */
 export type ResolvedMode = 'dark' | 'light'
 export type ScreenshotFormat = 'png' | 'jpg'
+/** What a screenshot of a screen with HDR on is saved as: remapped to SDR (in screenshotFormat), or kept as HDR in JPEG XR. */
+export type ScreenshotHdr = 'sdr' | 'jxr'
 export type FilterKey = 'all' | 'installed' | 'notInstalled' | 'played' | 'unplayed' | 'favorite' | 'hidden'
 export type SortKey = 'title' | 'addedAt' | 'lastPlayed' | 'playtime' | 'playCount'
 export type MediaKind = 'covers' | 'banners'
@@ -96,6 +98,7 @@ export interface AppSettings {
   /** Where screenshots go; empty = Pictures\Storm. */
   screenshotDir: string
   screenshotFormat: ScreenshotFormat
+  screenshotHdr: ScreenshotHdr
   screenshotSound: boolean
   /** Flash a small "saved" card in the corner of the screen. */
   screenshotNotify: boolean
@@ -191,6 +194,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   screenshotOnlyWhilePlaying: true,
   screenshotDir: '',
   screenshotFormat: 'png',
+  // A PNG looks right everywhere; a .jxr needs an HDR-aware viewer.
+  screenshotHdr: 'sdr',
   screenshotSound: true,
   screenshotNotify: true
 }

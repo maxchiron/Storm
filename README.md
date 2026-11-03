@@ -62,7 +62,10 @@ out. Storm reads an HDR screen in full instead (DXGI, in half floats) and
 turns it into a normal PNG/JPEG: SDR content — the desktop, SDR games — comes
 out exactly as it looked, at whatever "SDR content brightness" Windows is set
 to, and an HDR game's highlights are rolled off smoothly (the BT.2390 curve
-TVs use) rather than clipped. Screens in SDR are captured as before.
+TVs use) rather than clipped. Screens in SDR are captured as before. Or keep
+the HDR: with **Settings → Screenshots → When HDR is on → Keep HDR**, an HDR
+screen is saved as JPEG XR (`.jxr`, the format Xbox Game Bar uses) with its
+full brightness range and colour, to view in Windows Photos on an HDR screen.
 
 **Themes.** Six themes — Storm, Aurora, Nebula, Synthwave, Ember, Obsidian —
 each in a dark and a light version, or following Windows. Pick any accent on
@@ -208,6 +211,7 @@ src/
 │   ├── capture-process.ts that process (an Electron utility process)
 │   ├── dxgi.ts      reads an HDR screen through D3D11/DXGI (via koffi)
 │   ├── tonemap.ts   HDR frame → SDR picture (BT.2390 roll-off, sRGB)
+│   ├── jxr.ts       HDR frame → JPEG XR file (WIC via koffi)
 │   ├── com.ts       calling COM objects through koffi
 │   ├── wininput.ts  keyboard and XInput state for the shortcuts (via koffi)
 │   ├── log.ts       storm.log

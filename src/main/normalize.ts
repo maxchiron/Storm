@@ -168,6 +168,7 @@ export function sanitizeSettings(patch: unknown, base: AppSettings = DEFAULT_SET
   }
   if (typeof p.screenshotDir === 'string') next.screenshotDir = p.screenshotDir.trim()
   if (p.screenshotFormat === 'png' || p.screenshotFormat === 'jpg') next.screenshotFormat = p.screenshotFormat
+  if (p.screenshotHdr === 'sdr' || p.screenshotHdr === 'jxr') next.screenshotHdr = p.screenshotHdr
   return next
 }
 

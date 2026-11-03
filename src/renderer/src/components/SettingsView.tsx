@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useStorm, useT } from '../store/useStorm'
 import { ACCENTS, POSTER_SIZES } from '@shared/types'
 import { THEMES } from '@shared/themes'
-import type { AppearanceMode, AppSettings, Language, ScreenshotFormat } from '@shared/types'
+import type { AppearanceMode, AppSettings, Language, ScreenshotFormat, ScreenshotHdr } from '@shared/types'
 import type { TranslationKey } from '@shared/i18n'
 import { accentTokens, resolveMode } from '../utils/theme'
 import { fadeUp, SPRING_SOFT } from '../motion'
@@ -327,6 +327,20 @@ export default function SettingsView(): React.JSX.Element {
                 options={[
                   { value: 'png', label: t('settings.shotFormatPng') },
                   { value: 'jpg', label: t('settings.shotFormatJpg') }
+                ]}
+              />
+            </Row>
+            <Row
+              label={t('settings.shotHdr')}
+              hint={t(settings.screenshotHdr === 'jxr' ? 'settings.shotHdrJxrHint' : 'settings.shotHdrSdrHint')}
+            >
+              <Segmented<ScreenshotHdr>
+                id="shot-hdr"
+                value={settings.screenshotHdr}
+                onChange={(screenshotHdr) => patch({ screenshotHdr })}
+                options={[
+                  { value: 'sdr', label: t('settings.shotHdrSdr') },
+                  { value: 'jxr', label: t('settings.shotHdrJxr') }
                 ]}
               />
             </Row>

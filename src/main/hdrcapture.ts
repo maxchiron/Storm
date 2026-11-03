@@ -12,8 +12,8 @@ import type { Rect } from './dxgi'
  */
 
 const IDLE_MS = 120_000
-/** Far more than a 4K frame takes; past this the process is presumed stuck. */
-const REPLY_MS = 8_000
+/** Far more than a 4K frame takes, JPEG XR encoding included; past this the process is presumed stuck. */
+const REPLY_MS = 20_000
 const MAX_FAILURES = 2
 
 class CaptureProcess {
@@ -28,8 +28,11 @@ class CaptureProcess {
     return process.platform === 'win32' && this.failures < MAX_FAILURES
   }
 
-  /** The screen covering rect (physical pixels). Never rejects: a failure is a reply too. */
-  capture(rect: Rect): Promise<CaptureReply> {
+  /**
+   * The screen covering rect (physical pixels); with keepHdr, an HDR screen
+   * comes back as JPEG XR too. Never rejects: a failure is a reply as well.
+   */
+  capture(rect: Rect, keepHdr: boolean): Promise<CaptureReply> {
     const id = this.nextId++
     if (this.idleTimer) clearTimeout(this.idleTimer)
     this.idleTimer = null
@@ -52,7 +55,7 @@ class CaptureProcess {
         clearTimeout(timer)
         resolve(reply)
       })
-      child.postMessage({ id, rect } satisfies CaptureRequest)
+      child.postMessage({ id, rect, keepHdr } satisfies CaptureRequest)
     }).finally(() => this.idleLater())
   }
 

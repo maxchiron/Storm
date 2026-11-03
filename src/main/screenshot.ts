@@ -46,9 +46,16 @@ import type {
  *
  * A screen with HDR on is read in full through the capture process and its
  * highlights rolled off into the picture (hdrcapture.ts, tonemap.ts); the
- * ordinary capture would cut them off at SDR white. SDR screens, and any HDR
+ * ordinary capture would cut them off at SDR white. Or, if the settings say
+ * so, it is kept as HDR in a JPEG XR file (jxr.ts). SDR screens, and any HDR
  * capture that fails, go through desktopCapturer as before.
  */
+
+/** A captured screen: the picture, and the same screen as JPEG XR when it is kept as HDR. */
+interface Grabbed {
+  image: NativeImage
+  jxr: Buffer | null
+}
 
 const RESERVED_NAMES = /^(con|prn|aux|nul|com\d|lpt\d)$/i
 const OVERLAY_WIDTH = 340
@@ -279,7 +286,7 @@ export class ScreenshotService {
   }
 
   /** Capture the screen under the pointer — where a running game almost always is. */
-  private async grab(display: Display): Promise<NativeImage | null> {
+  private async grab(display: Display): Promise<Grabbed | null> {
     if (hdrCapture.usable) {
       // Whatever goes wrong on the HDR path, the ordinary capture is still there.
       const grabbed = await this.grabHdr(display).catch((err: unknown) => {
@@ -300,7 +307,7 @@ export class ScreenshotService {
         'desktopCapturer'
       )
       const source = sources.find((s) => s.display_id === String(display.id)) ?? sources[0]
-      if (source && !source.thumbnail.isEmpty()) return source.thumbnail
+      if (source && !source.thumbnail.isEmpty()) return { image: source.thumbnail, jxr: null }
       log('shot', `desktopCapturer returned no image (${sources.length} screen${sources.length === 1 ? '' : 's'})`)
       return null
     } catch (err) {
@@ -310,18 +317,28 @@ export class ScreenshotService {
   }
 
   /** The screen through the capture process if it is in HDR; null for SDR screens and failures. */
-  private async grabHdr(display: Display): Promise<NativeImage | null> {
-    const reply = await hdrCapture.capture(physicalBounds(display))
+  private async grabHdr(display: Display): Promise<Grabbed | null> {
+    const keepHdr = store.settings.screenshotHdr === 'jxr'
+    const reply = await hdrCapture.capture(physicalBounds(display), keepHdr)
     if (reply.kind === 'failed') log('shot', `HDR capture failed, taking an ordinary one: ${reply.reason}`)
     if (reply.kind !== 'image') return null
     log(
       'shot',
       `HDR screen ${reply.device}: SDR white ${Math.round(reply.sdrWhiteNits)} nits, ` +
-        `brightest ${Math.round(reply.peakNits)} nits${reply.toneMapped ? ', highlights rolled off' : ''} (${reply.ms} ms)`
+        `brightest ${Math.round(reply.peakNits)} nits` +
+        (reply.jxr
+          ? `, kept as HDR (JPEG XR, ${(reply.jxr.byteLength / 1e6).toFixed(1)} MB)`
+          : reply.toneMapped
+            ? ', highlights rolled off'
+            : '') +
+        ` (${reply.ms} ms)`
     )
+    if (keepHdr && !reply.jxr) log('shot', `could not keep it as HDR, saving it remapped to SDR: ${reply.jxrError}`)
     const pixels = Buffer.from(reply.pixels.buffer, reply.pixels.byteOffset, reply.pixels.byteLength)
     const image = nativeImage.createFromBitmap(pixels, { width: reply.width, height: reply.height })
-    return image.isEmpty() ? null : image
+    if (image.isEmpty()) return null
+    const jxr = reply.jxr ? Buffer.from(reply.jxr.buffer, reply.jxr.byteOffset, reply.jxr.byteLength) : null
+    return { image, jxr }
   }
 
   /**
@@ -371,19 +388,20 @@ export class ScreenshotService {
   }
 
   private async captureOn(display: Display): Promise<ScreenshotResult> {
-    const image = await this.grab(display)
-    if (!image) return { ok: false, error: 'CAPTURE_FAILED' }
+    const grabbed = await this.grab(display)
+    if (!grabbed) return { ok: false, error: 'CAPTURE_FAILED' }
+    const { image, jxr } = grabbed
 
     const gameId = launcher.latestGameId
     const game = gameId ? store.getGame(gameId) : undefined
     const settings = store.settings
-    const ext = settings.screenshotFormat === 'jpg' ? 'jpg' : 'png'
+    const ext = jxr ? 'jxr' : settings.screenshotFormat === 'jpg' ? 'jpg' : 'png'
     const dir = this.folderFor(game?.id ?? null)
     const base = `${safeFileName(game?.title ?? 'Storm')} ${timestamp(new Date())}`
 
     let file = ''
     try {
-      const data = ext === 'jpg' ? image.toJPEG(92) : image.toPNG()
+      const data = jxr ?? (ext === 'jpg' ? image.toJPEG(92) : image.toPNG())
       file = await within(writeUnique(dir, base, ext, data), SAVE_TIMEOUT_MS, 'saving')
     } catch (err) {
       log('shot', `could not save to ${dir}`, err)
@@ -416,7 +434,7 @@ export class ScreenshotService {
     if (settings.screenshotNotify) {
       const lang = settings.language
       void this.flash(display, {
-        heading: translate(lang, 'shot.saved'),
+        heading: translate(lang, jxr ? 'shot.savedHdr' : 'shot.saved'),
         detail: game?.title ?? translate(lang, 'shot.desktop'),
         preview,
         error: false
