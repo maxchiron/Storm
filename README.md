@@ -48,7 +48,10 @@ SteamGridDB search for the game in your browser — drag the one you like back i
 controller — while a game launched from Storm is running. The screen is saved
 to `Pictures\Storm\<Game>\`, a small card confirms it without taking focus
 from the game, and the game's page shows a gallery. Both shortcuts can be
-changed (or recorded straight from your controller) in Settings.
+changed (or recorded straight from your controller) in Settings. Storm reads
+the keyboard and Xbox-style controllers (XInput) directly, so the shortcuts
+work while the game has focus; if a shot fails, the card says so and
+`storm.log` in the data folder says why.
 
 **Themes.** Six themes — Storm, Aurora, Nebula, Synthwave, Ember, Obsidian —
 each in a dark and a light version, or following Windows. Pick any accent on
@@ -137,8 +140,9 @@ Everything lives in Electron's user-data folder:
 ├── library.json      # your games, settings and play history
 ├── covers/           # poster images
 ├── banners/          # wallpaper images
-└── thumbs/           # previews of your screenshots (the screenshots
-                      #   themselves are in Pictures\Storm)
+├── thumbs/           # previews of your screenshots (the screenshots
+│                     #   themselves are in Pictures\Storm)
+└── storm.log         # what went wrong out of sight (screenshot shortcuts)
 ```
 
 - `library.json` is written atomically (temp file + rename), so a crash can
@@ -187,6 +191,8 @@ src/
 │   ├── pe.ts        reads version info (ProductName…) from executables
 │   ├── lnk.ts       reads Windows shortcut files
 │   ├── screenshot.ts screenshot hotkey, capture and gallery
+│   ├── wininput.ts  keyboard and XInput state for the shortcuts (via koffi)
+│   ├── log.ts       storm.log
 │   ├── normalize.ts validation of everything read from disk or the renderer
 │   ├── tray.ts      system-tray icon and menu
 │   ├── png.ts       tiny PNG encoder for the app & tray icons

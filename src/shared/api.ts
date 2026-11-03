@@ -70,8 +70,8 @@ export interface StormApi {
   listScreenshots(gameId: string): Promise<ScreenshotInfo[]>
   openScreenshot(id: string): Promise<boolean>
   pickScreenshotDir(): Promise<string | null>
-  /** Pause the global hotkey while Settings records a new one. */
-  suspendHotkey(suspended: boolean): Promise<HotkeyState>
+  /** Pause the hotkey (or the controller combo) while Settings records a new one. */
+  suspendHotkey(suspended: boolean, kind?: 'key' | 'pad'): Promise<HotkeyState>
 
   appVersion(): Promise<string>
   windowAction(action: 'minimize' | 'maximize' | 'close'): Promise<boolean>
@@ -86,6 +86,7 @@ export const STORM_CHANNELS = [
   'storm:session',
   'storm:window-state',
   'storm:screenshot',
+  'storm:screenshot-failed',
   'storm:hotkey'
 ] as const
 

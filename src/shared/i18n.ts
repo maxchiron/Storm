@@ -198,7 +198,8 @@ export const en = {
   'toast.exeNotFound': 'Could not find that file',
   'toast.posterUpdated': 'Poster updated',
   'toast.shotSaved': 'Screenshot saved',
-  'toast.shotFailed': 'Could not take a screenshot',
+  'toast.shotCaptureFailed': "Screenshot failed: the screen couldn't be captured",
+  'toast.shotWriteFailed': "Screenshot failed: it couldn't be saved to the screenshot folder",
   'toast.recovered': 'Your library file was damaged and could not be read. The damaged copy was kept at {path}',
 
   'empty.title': 'Your library is empty',
@@ -247,7 +248,10 @@ export const en = {
   'tray.quit': 'Quit Storm',
 
   'shot.saved': 'Screenshot saved',
-  'shot.desktop': 'Desktop'
+  'shot.desktop': 'Desktop',
+  'shot.failed': 'Screenshot failed',
+  'shot.captureFailed': "The screen couldn't be captured",
+  'shot.writeFailed': "Couldn't save to the screenshot folder"
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -449,7 +453,8 @@ export const zh: Record<TranslationKey, string> = {
   'toast.exeNotFound': '找不到这个文件',
   'toast.posterUpdated': '海报已更新',
   'toast.shotSaved': '截图已保存',
-  'toast.shotFailed': '截图失败',
+  'toast.shotCaptureFailed': '截图失败：无法捕获屏幕画面',
+  'toast.shotWriteFailed': '截图失败：无法保存到截图文件夹',
   'toast.recovered': '游戏库文件已损坏，无法读取。损坏的副本保存在 {path}',
 
   'empty.title': '游戏库还是空的',
@@ -497,7 +502,10 @@ export const zh: Record<TranslationKey, string> = {
   'tray.quit': '退出 Storm',
 
   'shot.saved': '截图已保存',
-  'shot.desktop': '桌面'
+  'shot.desktop': '桌面',
+  'shot.failed': '截图失败',
+  'shot.captureFailed': '无法捕获屏幕画面',
+  'shot.writeFailed': '无法保存到截图文件夹'
 }
 
 export function translate(lang: Language, key: TranslationKey): string {

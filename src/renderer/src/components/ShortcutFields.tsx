@@ -142,6 +142,8 @@ export function PadComboField({
   useEffect(() => {
     if (!recording) return
     setPadRecording(true)
+    // The main process watches controllers too; recording L3 + R3 must not take a picture.
+    void window.storm.suspendHotkey(true, 'pad')
     setNeedsTwo(false)
     let best: number[] = []
     let holding = false
@@ -183,6 +185,7 @@ export function PadComboField({
       window.clearInterval(timer)
       window.removeEventListener('keydown', onKey, true)
       setPadRecording(false)
+      void window.storm.suspendHotkey(false, 'pad')
       setLive([])
     }
   }, [recording, setPadRecording])

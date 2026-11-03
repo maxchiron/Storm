@@ -144,10 +144,8 @@ export default function SettingsView(): React.JSX.Element {
     }
   }
 
-  const testShot = async (): Promise<void> => {
-    const result = await window.storm.takeScreenshot()
-    if (!result.ok && result.error !== 'BUSY') toast(t('toast.shotFailed'), 'error')
-  }
+  // A failure is reported through storm:screenshot-failed, like a shortcut's.
+  const testShot = (): void => void window.storm.takeScreenshot()
 
   const isPreset = ACCENTS.some((a) => a.color === settings.accent)
 
@@ -276,7 +274,7 @@ export default function SettingsView(): React.JSX.Element {
         <section className="panel settings-panel">
           <div className="panel-head">
             <h3 className="panel-title">{t('settings.screenshots')}</h3>
-            <button type="button" className="btn btn--soft" onClick={() => void testShot()}>
+            <button type="button" className="btn btn--soft" onClick={testShot}>
               <CameraIcon size={14} />
               {t('settings.testShot')}
             </button>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'framer-motion'
 import { useStorm } from './store/useStorm'
-import type { AppSettings, Game, HotkeyState, RunningSession, SessionEvent } from '@shared/types'
+import type { AppSettings, Game, HotkeyState, RunningSession, ScreenshotError, SessionEvent } from '@shared/types'
 import { applyTheme, onSystemModeChange, resolveMode } from './utils/theme'
 import { comboHeld, connectedPads } from './utils/gamepad'
 import { formatPlaytime } from './utils/format'
@@ -24,6 +24,11 @@ const VIEW_TRANSITION = { duration: 0.22, ease: [0.16, 1, 0.3, 1] as [number, nu
  * Watches connected controllers for the screenshot combo. Runs on a timer
  * rather than requestAnimationFrame, which stops while the window is hidden
  * — and hidden behind a game is exactly when the combo is used.
+ *
+ * On Windows this only covers controllers Chromium reads through raw input
+ * (PlayStation ones, for instance): Xbox-style pads go through an API that
+ * reports nothing while a game has focus, so the main process watches those
+ * through XInput itself. A press both of them see still takes one picture.
  */
 function usePadScreenshot(): void {
   const comboKey = useStorm((s) => s.settings.screenshotPadCombo.join(','))
@@ -112,6 +117,11 @@ export default function App(): React.JSX.Element {
         state.bumpShots()
         if (state.settings.screenshotSound) playShutter()
         state.toast(state.t('toast.shotSaved'), 'success')
+      }),
+      window.storm.on('storm:screenshot-failed', (payload) => {
+        const state = s()
+        const error = payload as ScreenshotError
+        state.toast(state.t(error === 'WRITE_FAILED' ? 'toast.shotWriteFailed' : 'toast.shotCaptureFailed'), 'error')
       })
     ]
     return () => offs.forEach((off) => off())

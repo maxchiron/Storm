@@ -376,7 +376,7 @@ export function registerIpc(): void {
 
   /* ------------------------------------------------------ screenshots */
 
-  ipcMain.handle('storm:takeScreenshot', () => screenshots.capture())
+  ipcMain.handle('storm:takeScreenshot', () => screenshots.shoot('window'))
   ipcMain.handle('storm:listScreenshots', async (_e, gameId: unknown) => (isId(gameId) ? screenshots.list(gameId) : []))
   // Only SteamGridDB, and only built from the title: the renderer never gets
   // to open an arbitrary address in the browser.
@@ -391,7 +391,9 @@ export function registerIpc(): void {
     }
   })
   ipcMain.handle('storm:openScreenshot', async (_e, id: unknown) => (isId(id) ? screenshots.open(id) : false))
-  ipcMain.handle('storm:suspendHotkey', async (_e, suspended: unknown) => screenshots.suspend(suspended === true))
+  ipcMain.handle('storm:suspendHotkey', async (_e, suspended: unknown, kind: unknown) =>
+    screenshots.suspend(suspended === true, kind === 'pad' ? 'pad' : 'key')
+  )
   ipcMain.handle('storm:pickScreenshotDir', async (): Promise<string | null> => {
     return showOpen({
       title: translate(store.settings.language, 'dialog.pickFolder'),
@@ -435,6 +437,7 @@ export function startRuntimeBroadcasters(): void {
   })
   screenshots.onState((state) => broadcast('storm:hotkey', state))
   screenshots.onShot((event) => broadcast('storm:screenshot', event))
+  screenshots.onFailure((error) => broadcast('storm:screenshot-failed', error))
   watcher.addListener((gameId, installed) => {
     const game = store.getGame(gameId)
     if (!game || game.installed === installed) return
