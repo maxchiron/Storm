@@ -13,11 +13,13 @@
     "seed": "node scripts/seed-demo.mjs",
     "icon": "node scripts/gen-icon.mjs",
     "dist": "npm run build && node scripts/build-installer.mjs",
-    "dist:zip": "npm run build && electron-builder --win zip --x64",
-    "dist:app": "npm run build && electron-builder --win --x64 --dir",
-    "dist:dir": "npm run build && electron-builder --win --x64 --dir"
+    "dist:zip": "npm run build && node scripts/fetch-koffi.mjs && electron-builder --win zip --x64",
+    "dist:app": "npm run build && node scripts/fetch-koffi.mjs && electron-builder --win --x64 --dir",
+    "dist:dir": "npm run build && node scripts/fetch-koffi.mjs && electron-builder --win --x64 --dir"
   },
-  "dependencies": {},
+  "dependencies": {
+    "koffi": "^3.3.6"
+  },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",

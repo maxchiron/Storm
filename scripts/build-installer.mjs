@@ -13,6 +13,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { ensureKoffiWindows } from './fetch-koffi.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -218,8 +219,14 @@ function ensureAppBuilt() {
   const appDir = path.join(RELEASE, 'win-unpacked')
   const asar = path.join(appDir, 'resources', 'app.asar')
   const builtAt = fs.existsSync(asar) ? fs.statSync(asar).mtimeMs : 0
-  // package.json counts too: a version bump alone must reach the app.
-  const sourceAt = Math.max(newestMtime(path.join(ROOT, 'out')), fs.statSync(path.join(ROOT, 'package.json')).mtimeMs)
+  // package.json counts too: a version bump alone must reach the app. So does
+  // koffi's Windows binary, which electron-builder copies into resources/.
+  const koffi = ensureKoffiWindows()
+  const sourceAt = Math.max(
+    newestMtime(path.join(ROOT, 'out')),
+    fs.statSync(path.join(ROOT, 'package.json')).mtimeMs,
+    fs.statSync(koffi).mtimeMs
+  )
 
   if (builtAt > 0 && builtAt >= sourceAt) {
     console.log('· the unpacked Windows app is up to date')

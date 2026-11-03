@@ -7,6 +7,13 @@ directories:
 files:
   - out/**/*
   - package.json
+  # koffi's per-platform binaries; Windows gets its own through extraResources.
+  - '!node_modules/@koromix/**'
+extraResources:
+  # Where koffi looks for its native module in a packaged Electron app. Put
+  # there by scripts/fetch-koffi.mjs, which the dist scripts run first.
+  - from: build/koffi/win32_x64/koffi.node
+    to: koffi/win32_x64/koffi.node
 asar: true
 win:
   icon: build/icon.ico
