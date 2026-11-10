@@ -32,6 +32,21 @@ so a launcher that hands over to the real game (or a restart through Steam)
 is still counted to the end. Your library becomes an actual gaming log, not a
 folder of shortcuts.
 
+**Host mode — Storm on the TV.** The button left of *minimise* turns Storm
+into a console-style home screen: full screen, the posters in one row from
+left to right with the selected one ringed and the game's art behind it, and
+a controller for everything — browsing, playing, the game's details, the
+screenshot album and the settings a controller can handle. LB / RB switch
+between *Recent*, *Favorites*, *Installed* and *A–Z*. While no game runs,
+Storm keeps the focus (Steam jumping forward after a game closes is put back
+behind it); once a game is running, the focus goes to the game, and when the
+game ends Storm comes straight back. Host mode is **read-only**: guests can
+browse and play, nothing in the library can be changed, and hidden games stay
+hidden. It comes in dark and light, following the same *Mode* setting as the
+window (which can also be changed from host mode). Leave it from the power
+button on its home screen, or turn on *Start in host mode* for a PC that lives
+under the TV.
+
 **Everything about a game in one place.** Cover art, wallpaper, executable
 path, install location, save location, tags and notes.
 
@@ -50,7 +65,9 @@ SteamGridDB search for the game in your browser — drag the one you like back i
 **Screenshots, keyboard or controller.** Press **F12** — or **L3 + R3** on a
 controller — while a game launched from Storm is running. The screen is saved
 to `Pictures\Storm\<Game>\`, a small card confirms it without taking focus
-from the game, and the game's page shows a gallery. Both shortcuts can be
+from the game, and the game's page shows a gallery. Screenshots open in
+Storm's own viewer — full screen if you like, with zoom, panning and the
+next / previous shot by keyboard, mouse or controller. Both shortcuts can be
 changed (or recorded straight from your controller) in Settings. Storm reads
 the keyboard and Xbox-style controllers (XInput) directly, so the shortcuts
 work while the game has focus; if a shot fails, the card says so and
@@ -88,7 +105,8 @@ top, including a custom colour.
 | **Sorting** | Title, date added, last played, playtime, sessions |
 | **Detail page** | Wallpaper backdrop, path rows with reveal-in-folder and copy, tags, notes, install status |
 | **Drag & paste** | Drop `.exe` / `.lnk` files to add games (several at once), drop or paste images for posters and wallpapers |
-| **Screenshots** | Global hotkey and controller combo, per-game folders, in-game "saved" card, shutter sound, gallery on the detail page, correct colours on HDR screens |
+| **Host mode** | Full-screen, controller-driven home screen: poster row, collections, details, album, controller-friendly settings; keeps the focus on Storm or the running game; dark and light; read-only |
+| **Screenshots** | Global hotkey and controller combo, per-game folders, in-game "saved" card, shutter sound, gallery on the detail page, built-in full-screen viewer, correct colours on HDR screens |
 | **Themes** | Six themes in dark and light, "follow Windows", accent swatches plus a custom colour |
 | **Settings** | Language, theme, accent, poster size, screenshot shortcuts, tray behaviour, detection interval, motion reduction, JSON import/export |
 | **System tray** | Minimise to tray, live accent-coloured icon, quick access |
@@ -154,7 +172,8 @@ Everything lives in Electron's user-data folder:
 ├── library.json      # your games, settings and play history
 ├── covers/           # poster images
 ├── banners/          # wallpaper images
-├── thumbs/           # previews of your screenshots (the screenshots
+├── thumbs/           # previews of your screenshots, and an SDR copy of
+│                     #   each one kept as JPEG XR (the screenshots
 │                     #   themselves are in Pictures\Storm)
 └── storm.log         # what went wrong out of sight (screenshot shortcuts)
 ```
@@ -196,6 +215,8 @@ simply treated as *not installed*.
 src/
 ├── main/            Electron main process
 │   ├── index.ts     window, tray, protocols, app lifecycle
+│   ├── hostmode.ts  host mode: full screen, where the focus goes, screen awake
+│   ├── foreground.ts which window has the focus, and handing it over (Win32)
 │   ├── ipc.ts       every IPC handler
 │   ├── store.ts     JSON persistence (atomic writes)
 │   ├── watcher.ts   live install-folder detection
@@ -221,7 +242,8 @@ src/
 │   └── icons.ts     runtime-generated bolt icon
 ├── preload/         contextBridge API (whitelisted channels only)
 ├── renderer/        React UI
-│   ├── components/  sidebar, wall, cards, detail, form, settings
+│   ├── components/  sidebar, wall, cards, detail, form, settings, screenshot viewer
+│   ├── host/        host mode: controller input, home row, details, album, settings
 │   ├── styles/      design tokens and per-area stylesheets
 │   ├── store/       zustand state
 │   └── utils/       formatting and selectors
@@ -234,7 +256,7 @@ src/
 | Scheme | Serves | Why |
 |---|---|---|
 | `app://storm/` | the built renderer | A real origin, so the production CSP can be strict (`script-src 'self'`) and ES modules load without `file://` restrictions. |
-| `storm://asset/` | posters, wallpapers, screenshot previews | The renderer can read Storm's media folders and nothing else — path traversal is rejected. |
+| `storm://asset/` | posters, wallpapers, screenshot previews, screenshots | The renderer can read Storm's media folders and nothing else — path traversal is rejected. A full-size screenshot is asked for by its record id, never by path, and only PNG and JPEG files Storm recorded are read. |
 
 The packaged app runs with `sandbox: true`, `contextIsolation: true` and
 `nodeIntegration: false`, behind a strict Content-Security-Policy.

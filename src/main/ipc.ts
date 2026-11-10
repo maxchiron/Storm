@@ -9,6 +9,7 @@ import { screenshots } from './screenshot'
 import { openFolder, revealFile } from './shell'
 import { broadcast, getMainWindow } from './window'
 import { hasTray, refreshTray } from './tray'
+import { hostMode } from './hostmode'
 import { cleanGameInput } from './normalize'
 import { translate } from '@shared/i18n'
 import { windowBackground } from '@shared/themes'
@@ -38,6 +39,15 @@ function isPath(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length < 4096
 }
 
+/**
+ * Host mode is read-only: guests at the TV can browse and play, but nothing
+ * about the library changes. The host UI offers no way to edit; this makes
+ * sure nothing else can either.
+ */
+function assertWritable(): void {
+  if (hostMode.isActive) throw new Error('READ_ONLY')
+}
+
 async function probeInstalled(game: Game): Promise<boolean> {
   const anchor = anchorFor(game)
   return anchor ? pathExists(anchor) : false
@@ -64,6 +74,7 @@ function snapshot(): LibrarySnapshot {
     running: launcher.runningSessions,
     dataDir: store.dataDir,
     hotkey: screenshots.hotkeyState,
+    host: hostMode.isActive,
     recoveredFrom: store.recoveredFrom
   }
 }
@@ -78,6 +89,7 @@ function pushSettings(): void {
 
 /** Apply a mutation to one game and persist it. */
 async function updateGame(id: unknown, fn: (game: Game) => void): Promise<Game> {
+  assertWritable()
   if (!isId(id)) throw new Error('NOT_FOUND')
   const game = store.getGame(id)
   if (!game) throw new Error('NOT_FOUND')
@@ -105,6 +117,7 @@ export function registerIpc(): void {
   ipcMain.handle('storm:snapshot', async (): Promise<LibrarySnapshot> => snapshot())
 
   ipcMain.handle('storm:saveGame', async (_e, payload: unknown): Promise<Game> => {
+    assertWritable()
     const input = cleanGameInput(payload)
     const id = (payload as { id?: unknown } | null)?.id
     const now = new Date().toISOString()
@@ -168,6 +181,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('storm:deleteGame', async (_e, id: unknown): Promise<void> => {
+    assertWritable()
     if (!isId(id)) return
     const game = store.getGame(id)
     if (!game) return
@@ -324,6 +338,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('storm:importLibrary', async (): Promise<LibrarySnapshot | null> => {
+    assertWritable()
     const lang = store.settings.language
     const file = await showOpen({
       title: translate(lang, 'settings.import'),
@@ -378,6 +393,7 @@ export function registerIpc(): void {
 
   ipcMain.handle('storm:takeScreenshot', () => screenshots.shoot('window'))
   ipcMain.handle('storm:listScreenshots', async (_e, gameId: unknown) => (isId(gameId) ? screenshots.list(gameId) : []))
+  ipcMain.handle('storm:listAllScreenshots', () => screenshots.listAll())
   // Only SteamGridDB, and only built from the title: the renderer never gets
   // to open an arbitrary address in the browser.
   ipcMain.handle('storm:searchPoster', async (_e, title: unknown): Promise<boolean> => {
@@ -390,7 +406,6 @@ export function registerIpc(): void {
       return false
     }
   })
-  ipcMain.handle('storm:openScreenshot', async (_e, id: unknown) => (isId(id) ? screenshots.open(id) : false))
   ipcMain.handle('storm:suspendHotkey', async (_e, suspended: unknown, kind: unknown) =>
     screenshots.suspend(suspended === true, kind === 'pad' ? 'pad' : 'key')
   )
@@ -415,8 +430,12 @@ export function registerIpc(): void {
       if (win.isMaximized()) win.unmaximize()
       else win.maximize()
     } else if (action === 'close') win.close()
+    else if (action === 'quit') app.quit()
     return true
   })
+
+  ipcMain.handle('storm:host:set', async (_e, on: unknown): Promise<boolean> => hostMode.set(on === true))
+  ipcMain.on('storm:host:activity', () => hostMode.activity())
 
   ipcMain.handle('storm:window:state', async (): Promise<'maximized' | 'normal'> => {
     return getMainWindow()?.isMaximized() ? 'maximized' : 'normal'

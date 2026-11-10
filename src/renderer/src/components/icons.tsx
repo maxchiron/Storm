@@ -254,3 +254,47 @@ export const ClipboardIcon = (p: IconProps): React.JSX.Element => (
     <path d="M9 4.5V3.8A.8.8 0 0 1 9.8 3h4.4a.8.8 0 0 1 .8.8v.7M9 4.5h6" />
   </Icon>
 )
+
+/** Host mode: a screen with a controller in front of it. */
+export const HostIcon = (p: IconProps): React.JSX.Element => (
+  <svg width={p.size ?? 14} height={p.size ?? 14} viewBox="0 0 14 14" aria-hidden="true" {...p}>
+    <rect x="1.6" y="2.2" width="10.8" height="7" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    <path d="M5 11.8h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M6 4.6v2.2M4.9 5.7h2.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    <circle cx="9.1" cy="5.1" r="0.65" fill="currentColor" />
+    <circle cx="9.1" cy="6.5" r="0.65" fill="currentColor" />
+  </svg>
+)
+
+export const PowerIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M12 3.5v8" />
+    <path d="M7.1 6.4a7 7 0 1 0 9.8 0" />
+  </Icon>
+)
+
+export const ZoomInIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.5 4.5M11 8.2v5.6M8.2 11h5.6" />
+  </Icon>
+)
+
+export const ZoomOutIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.5 4.5M8.2 11h5.6" />
+  </Icon>
+)
+
+export const ExpandIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </Icon>
+)
+
+export const ShrinkIcon = (p: IconProps): React.JSX.Element => (
+  <Icon {...p}>
+    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+  </Icon>
+)

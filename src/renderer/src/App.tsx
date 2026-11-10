@@ -17,6 +17,7 @@ import ToastHost from './components/ToastHost'
 import ConfirmDialog from './components/ConfirmDialog'
 import WindowControls from './components/WindowControls'
 import DropLayer from './components/DropLayer'
+import HostMode from './host/HostMode'
 
 const VIEW_TRANSITION = { duration: 0.22, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }
 
@@ -63,6 +64,7 @@ export default function App(): React.JSX.Element {
   const reduceMotion = useStorm((s) => s.settings.reduceMotion)
   const language = useStorm((s) => s.settings.language)
   const section = useStorm((s) => s.section)
+  const hostMode = useStorm((s) => s.hostMode)
   const init = useStorm((s) => s.init)
 
   useEffect(() => {
@@ -102,6 +104,7 @@ export default function App(): React.JSX.Element {
       window.storm.on('storm:settings', (payload) => s().setSettings(payload as AppSettings)),
       window.storm.on('storm:running', (payload) => s().setRunning(payload as RunningSession[])),
       window.storm.on('storm:hotkey', (payload) => s().setHotkey(payload as HotkeyState)),
+      window.storm.on('storm:host', (payload) => s().hostChanged(payload === true)),
       window.storm.on('storm:session', (payload) => {
         const { gameId, minutes } = payload as SessionEvent
         const state = s()
@@ -127,7 +130,7 @@ export default function App(): React.JSX.Element {
     return () => offs.forEach((off) => off())
   }, [])
 
-  // Theme, mode and accent. "System" follows Windows while the app is open.
+  // Theme, mode and accent — host mode included. "System" follows Windows while the app is open.
   useEffect(() => {
     const apply = (): void => applyTheme(theme, resolveMode(appearance), accent)
     apply()
@@ -138,8 +141,9 @@ export default function App(): React.JSX.Element {
     const root = document.documentElement
     root.dataset.poster = posterSize
     root.dataset.motion = reduceMotion ? 'reduced' : 'full'
+    root.dataset.host = hostMode ? 'on' : 'off'
     root.lang = language === 'zh' ? 'zh-CN' : 'en'
-  }, [posterSize, reduceMotion, language])
+  }, [posterSize, reduceMotion, language, hostMode])
 
   // Escape closes the topmost layer only: confirm dialog, then the form,
   // then the detail page. Menus and recorders that handle Escape themselves
@@ -148,6 +152,8 @@ export default function App(): React.JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape' || e.defaultPrevented) return
       const s = useStorm.getState()
+      // Host mode reads the keyboard through its own input layer.
+      if (s.hostMode) return
       if (s.confirmId) s.askDelete(null)
       else if (s.formOpen) s.closeForm()
       else if (s.selectedId) s.select(null)
@@ -181,6 +187,16 @@ export default function App(): React.JSX.Element {
         </motion.div>
         <WindowControls />
       </div>
+    )
+  }
+
+  if (hostMode) {
+    return (
+      <MotionConfig reducedMotion={reduceMotion ? 'always' : 'user'}>
+        <LayoutGroup>
+          <HostMode />
+        </LayoutGroup>
+      </MotionConfig>
     )
   }
 

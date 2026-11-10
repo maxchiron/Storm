@@ -1,0 +1,360 @@
+/* ------------------------------------------------------------------ *
+ *  Storm — screenshot viewer (PC mode and host mode)
+ * ------------------------------------------------------------------ */
+
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  /* clip, not hidden: the blurred backdrop overflows the viewer, and a hidden
+     box can still be scrolled by script, which shifts everything inside it. */
+  overflow: clip;
+  /* Photos are seen best against the dark, so the viewer stays dark in
+     light mode too — and anything it borrows (the host hints) reads light. */
+  --text-0: #f4f6fb;
+  --text-1: rgba(255, 255, 255, 0.78);
+  --text-2: rgba(255, 255, 255, 0.58);
+  color: #f4f6fb;
+  background: #030407;
+  user-select: none;
+  /* The app shell underneath marks the title bar as a window-drag band, and
+     Electron lets those win over anything painted on top. The viewer covers
+     the window, so it takes the whole of it back. */
+  -webkit-app-region: no-drag;
+}
+.viewer--bare:not(.viewer--host) {
+  cursor: none;
+}
+
+/* The picture's own colours, blurred, fill the dark around it. */
+.viewer-ambient {
+  position: absolute;
+  inset: -12%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(70px) saturate(1.5) brightness(0.42);
+  transform: scale(1.1);
+  pointer-events: none;
+}
+
+.viewer-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.viewer.is-zoomed .viewer-stage {
+  cursor: grab;
+}
+.viewer-slide {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.viewer-img {
+  display: block;
+  max-width: none;
+  opacity: 0;
+  transform-origin: center;
+  will-change: transform;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+  transition:
+    opacity 0.25s ease,
+    transform 0.18s var(--ease);
+}
+.viewer-img.is-loaded {
+  opacity: 1;
+}
+.viewer-img.is-dragging {
+  cursor: grabbing;
+  transition: opacity 0.25s ease;
+}
+
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.viewer-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: blur(6px);
+  opacity: 0.55;
+}
+.viewer-spinner {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.16);
+  border-top-color: var(--accent);
+  animation: viewer-spin 0.8s linear infinite;
+}
+@keyframes viewer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.viewer-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ------------------------------------------------------- captions */
+
+.viewer-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px 34px 24px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.68), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+.viewer-bar > * {
+  pointer-events: auto;
+}
+.viewer-caption {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.viewer-title {
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.viewer-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.66);
+  font-variant-numeric: tabular-nums;
+}
+.viewer-dot {
+  opacity: 0.6;
+}
+.viewer-badge {
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #1a0b00;
+  background: linear-gradient(135deg, #fbbf24, #f472b6);
+}
+.viewer-count {
+  flex: none;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.viewer-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(18, 20, 28, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(16px);
+}
+.viewer-btn,
+.viewer-zoom {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.82);
+  transition:
+    background var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.viewer-btn {
+  width: 36px;
+}
+.viewer-zoom {
+  min-width: 60px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.viewer-btn:hover:not(:disabled),
+.viewer-zoom:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+.viewer-btn:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+.viewer-btn--close:hover:not(:disabled) {
+  background: #e5484d;
+}
+.viewer-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.viewer-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-top: -27px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(18, 20, 28, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  transition:
+    opacity 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s var(--ease);
+}
+.viewer-nav--prev {
+  left: 22px;
+}
+.viewer-nav--prev svg {
+  transform: rotate(180deg);
+}
+.viewer-nav--next {
+  right: 22px;
+}
+.viewer-nav:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.42);
+  transform: scale(1.06);
+}
+.viewer-nav:disabled,
+.viewer--bare .viewer-nav {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.viewer-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 44px 20px 16px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+.viewer-foot > * {
+  pointer-events: auto;
+}
+.viewer--bare .viewer-bar > *,
+.viewer--bare .viewer-foot > * {
+  pointer-events: none;
+}
+
+.viewer-strip {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 6px;
+  scrollbar-width: none;
+}
+.viewer-strip::-webkit-scrollbar {
+  display: none;
+}
+.viewer-thumbnail {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 50px;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.07);
+  border: 2px solid transparent;
+  opacity: 0.5;
+  transition:
+    opacity 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.25s var(--ease);
+}
+.viewer-thumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.viewer-thumbnail:hover {
+  opacity: 0.9;
+}
+.viewer-thumbnail.is-current {
+  opacity: 1;
+  border-color: var(--accent);
+  transform: translateY(-3px);
+}
+
+/* ------------------------------------------------- host-mode sizes */
+
+.viewer--host .viewer-bar {
+  padding: 28px max(48px, 5.5vw) 50px;
+}
+.viewer--host .viewer-title {
+  font-size: 26px;
+}
+.viewer--host .viewer-meta {
+  font-size: 15px;
+}
+.viewer--host .viewer-count {
+  font-size: 16px;
+  padding: 6px 14px;
+}
+.viewer--host .viewer-foot {
+  padding: 60px max(48px, 5.5vw) 22px;
+}
+.viewer--host .viewer-thumbnail {
+  width: 118px;
+  height: 66px;
+  border-radius: 10px;
+  border-width: 3px;
+}
+.viewer .hhints--viewer {
+  position: static;
+  height: auto;
+  padding: 4px 0 0;
+  border-top: none;
+  background: none;
+  backdrop-filter: none;
+}

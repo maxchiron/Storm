@@ -155,7 +155,9 @@ export function sanitizeSettings(patch: unknown, base: AppSettings = DEFAULT_SET
     'reduceMotion',
     'screenshotOnlyWhilePlaying',
     'screenshotSound',
-    'screenshotNotify'
+    'screenshotNotify',
+    'startInHostMode',
+    'hostSounds'
   ] as const) {
     if (typeof p[key] === 'boolean') next[key] = p[key] as boolean
   }
@@ -207,6 +209,7 @@ export function normalizeScreenshots(raw: unknown): ScreenshotRecord[] {
       gameId: typeof item.gameId === 'string' && item.gameId ? item.gameId : null,
       file,
       thumb: mediaName(item.thumb),
+      preview: mediaName(item.preview),
       takenAt
     })
   }

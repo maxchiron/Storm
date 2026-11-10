@@ -7,6 +7,7 @@ import { pruneOrphanMedia, readImage, type MediaFolder } from './media'
 import { watcher } from './watcher'
 import { launcher } from './launcher'
 import { screenshots } from './screenshot'
+import { hostMode } from './hostmode'
 import { openFolder } from './shell'
 import { getMainWindow, setMainWindow, broadcast } from './window'
 import { createTray, destroyTray, hasTray, setScreenshotsHandler, setShowHandler } from './tray'
@@ -16,7 +17,8 @@ import { windowBackground } from '@shared/themes'
 // Two custom schemes:
 //   app://   serves the built renderer (a real origin, so a strict CSP works
 //            and ES modules load without file:// restrictions)
-//   storm:// serves posters, wallpapers and screenshot previews
+//   storm:// serves posters, wallpapers, screenshot previews and the
+//            screenshots themselves (for the viewer)
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'app',
@@ -77,6 +79,14 @@ const STORM_FOLDERS: Record<string, MediaFolder> = { covers: 'covers', banners: 
 async function handleStormProtocol(request: Request): Promise<Response> {
   const url = new URL(request.url)
   const segments = url.pathname.split('/').filter(Boolean)
+  if (segments[0] === 'shots' && segments.length === 2) {
+    // A screenshot by its record id — never by path, so nothing else on disk can be asked for.
+    const shot = await screenshots.image(decodeURIComponent(segments[1]))
+    if (!shot) return new Response('Not found', { status: 404 })
+    return new Response(new Uint8Array(shot.data), {
+      headers: { 'Content-Type': shot.mime, 'Cache-Control': 'private, max-age=3600' }
+    })
+  }
   const kind = STORM_FOLDERS[segments[0] ?? '']
   if (!kind || segments.length !== 2) return new Response('Not found', { status: 404 })
   const image = await readImage(kind, decodeURIComponent(segments[1]))
@@ -131,7 +141,8 @@ function initialBounds(): Partial<Electron.Rectangle> & { width: number; height:
 }
 
 function rememberBounds(win: BrowserWindow): void {
-  if (win.isDestroyed() || win.isMinimized()) return
+  // Full screen (host mode, the screenshot viewer) is not a size to come back to.
+  if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return
   const normal = win.getNormalBounds()
   const bounds: WindowBounds = { ...normal, maximized: win.isMaximized() }
   store.setWindowBounds(bounds)
@@ -166,8 +177,14 @@ function createWindow(): void {
   })
 
   setMainWindow(win)
+  hostMode.attach(win, settings.startInHostMode, store.windowBounds?.maximized === true)
 
   win.once('ready-to-show', () => {
+    if (hostMode.isActive) {
+      win.show()
+      hostMode.shown()
+      return
+    }
     // maximize() also shows the window, so it waits until there is something to show.
     if (store.windowBounds?.maximized) win.maximize()
     win.show()

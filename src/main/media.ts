@@ -218,7 +218,7 @@ export async function pruneOrphanMedia(): Promise<void> {
   const keep: Record<MediaFolder, Set<string>> = {
     covers: new Set(store.games.map((g) => g.cover).filter((n): n is string => !!n)),
     banners: new Set(store.games.map((g) => g.banner).filter((n): n is string => !!n)),
-    thumbs: new Set(store.screenshots.map((s) => s.thumb).filter((n): n is string => !!n))
+    thumbs: new Set(store.screenshots.flatMap((s) => [s.thumb, s.preview]).filter((n): n is string => !!n))
   }
   const cutoff = Date.now() - 60 * 60 * 1000
   for (const kind of ['covers', 'banners', 'thumbs'] as const) {

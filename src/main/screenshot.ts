@@ -5,7 +5,6 @@ import {
   globalShortcut,
   nativeImage,
   screen,
-  shell,
   type Display,
   type NativeImage,
   type Rectangle
@@ -15,7 +14,7 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { store } from './store'
 import { launcher } from './launcher'
-import { removeImage, writeImage } from './media'
+import { readImage, removeImage, sniffImage, writeImage } from './media'
 import { log } from './log'
 import { hdrCapture } from './hdrcapture'
 import { padMask, parseAccelerator, ShortcutWatcher } from './wininput'
@@ -42,7 +41,8 @@ import type {
  *   Pictures\Storm\<Game title>\<Game title> 2026-11-01 21-04-33.png
  *
  * Storm keeps a small preview of each one so the game's detail page can show
- * a gallery; the full-size files are the user's and are never deleted.
+ * a gallery, and serves the full-size picture to its own viewer
+ * (storm://asset/shots/<id>); the files are the user's and are never deleted.
  *
  * A screen with HDR on is read in full through the capture process and its
  * highlights rolled off into the picture (hdrcapture.ts, tonemap.ts); the
@@ -156,6 +156,7 @@ export function toInfo(record: ScreenshotRecord): ScreenshotInfo {
     gameId: record.gameId,
     file: record.file,
     thumbUrl: record.thumb ? `storm://asset/thumbs/${encodeURIComponent(record.thumb)}` : null,
+    url: `storm://asset/shots/${encodeURIComponent(record.id)}`,
     takenAt: record.takenAt
   }
 }
@@ -416,12 +417,22 @@ export class ScreenshotService {
     } catch {
       /* the gallery shows a placeholder instead */
     }
+    // No browser shows a .jxr: keep the SDR picture next to it for Storm's viewer.
+    let full: string | null = null
+    if (jxr) {
+      try {
+        full = await writeImage(image.toJPEG(90), 'jpg', 'thumbs')
+      } catch {
+        /* the viewer falls back to the small preview */
+      }
+    }
 
     const record: ScreenshotRecord = {
       id: randomUUID(),
       gameId: game?.id ?? null,
       file,
       thumb,
+      preview: full,
       takenAt: new Date().toISOString()
     }
     store.mutate((db) => {
@@ -504,8 +515,17 @@ export class ScreenshotService {
   }
 
   /** This game's screenshots, newest first. Records of deleted files are dropped. */
-  async list(gameId: string): Promise<ScreenshotInfo[]> {
-    const records = store.screenshots.filter((s) => s.gameId === gameId)
+  list(gameId: string): Promise<ScreenshotInfo[]> {
+    return this.present(store.screenshots.filter((s) => s.gameId === gameId))
+  }
+
+  /** Every screenshot, newest first — desktop ones and those of deleted games included. */
+  listAll(): Promise<ScreenshotInfo[]> {
+    return this.present([...store.screenshots])
+  }
+
+  /** The records whose files are still there, newest first; records of deleted files are dropped. */
+  private async present(records: ScreenshotRecord[]): Promise<ScreenshotInfo[]> {
     const states = await Promise.all(records.map((r) => fileState(r.file)))
     const deleted = records.filter((_, i) => states[i] === 'deleted')
     if (deleted.length > 0) {
@@ -514,7 +534,7 @@ export class ScreenshotService {
         db.screenshots = db.screenshots.filter((s) => !gone.has(s.id))
       })
       void store.save()
-      for (const r of deleted) void removeImage(r.thumb, 'thumbs')
+      for (const r of deleted) forgetMedia(r)
     }
     return records
       .filter((_, i) => states[i] === 'ok')
@@ -522,10 +542,28 @@ export class ScreenshotService {
       .map(toInfo)
   }
 
-  async open(id: string): Promise<boolean> {
+  /**
+   * The full-size picture for Storm's viewer. Only files Storm recorded as
+   * screenshots, and only PNG and JPEG ones, are ever read; a .jxr (or a file
+   * that cannot be read) is shown through its SDR copy or its small preview.
+   */
+  async image(id: string): Promise<{ data: Buffer; mime: string } | null> {
     const record = store.screenshots.find((s) => s.id === id)
-    if (!record) return false
-    return (await shell.openPath(record.file)) === ''
+    if (!record) return null
+    if (/\.(png|jpe?g)$/i.test(record.file)) {
+      try {
+        const data = await fsp.readFile(record.file)
+        const kind = sniffImage(data.subarray(0, 32))
+        if (kind === 'png' || kind === 'jpg') return { data, mime: kind === 'png' ? 'image/png' : 'image/jpeg' }
+      } catch {
+        /* gone, or out of reach: the previews still show something */
+      }
+    }
+    for (const name of [record.preview, record.thumb]) {
+      const image = name ? await readImage('thumbs', name) : null
+      if (image) return image
+    }
+    return null
   }
 
   /** Forget a deleted game's screenshots. The image files themselves stay. */
@@ -535,8 +573,14 @@ export class ScreenshotService {
     store.mutate((db) => {
       db.screenshots = db.screenshots.filter((s) => s.gameId !== gameId)
     })
-    for (const r of mine) void removeImage(r.thumb, 'thumbs')
+    for (const r of mine) forgetMedia(r)
   }
+}
+
+/** Storm's own copies of a screenshot (the file itself is the user's and stays). */
+function forgetMedia(record: ScreenshotRecord): void {
+  void removeImage(record.thumb, 'thumbs')
+  void removeImage(record.preview, 'thumbs')
 }
 
 const ERROR_ACCENT = '#f87171'

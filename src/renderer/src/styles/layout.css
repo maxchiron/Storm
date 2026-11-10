@@ -356,6 +356,21 @@
   background: #e5484d;
   color: #fff;
 }
+.win-btn--host {
+  color: var(--text-1);
+}
+.win-btn--host:hover:not(:disabled) {
+  color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.14);
+}
+.win-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.win-btn:disabled:hover {
+  background: none;
+  color: var(--text-2);
+}
 
 .toolbar {
   display: flex;

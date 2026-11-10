@@ -65,6 +65,8 @@ interface StormState {
   shotVersion: number
   /** Settings is recording a controller combo; the live combo must not fire meanwhile. */
   padRecording: boolean
+  /** Host mode: full screen, controller-driven and read-only. */
+  hostMode: boolean
 
   init: () => Promise<void>
   setGames: (games: Game[]) => void
@@ -96,6 +98,10 @@ interface StormState {
   addGameFiles: (paths: string[]) => Promise<void>
   bumpShots: () => void
   setPadRecording: (on: boolean) => void
+  /** Ask the main process to enter or leave host mode. */
+  setHostMode: (on: boolean) => Promise<void>
+  /** The main process says host mode went on or off. */
+  hostChanged: (on: boolean) => void
 }
 
 let toastSeq = 0
@@ -128,6 +134,7 @@ export const useStorm = create<StormState>((set, get) => ({
   toasts: [],
   shotVersion: 0,
   padRecording: false,
+  hostMode: false,
 
   init: async () => {
     const snapshot = await window.storm.getSnapshot()
@@ -137,6 +144,7 @@ export const useStorm = create<StormState>((set, get) => ({
       running: snapshot.running,
       dataDir: snapshot.dataDir,
       hotkey: snapshot.hotkey,
+      hostMode: snapshot.host,
       ready: true
     })
     if (snapshot.recoveredFrom) get().toast(get().t('toast.recovered', { path: snapshot.recoveredFrom }), 'error')
@@ -302,7 +310,18 @@ export const useStorm = create<StormState>((set, get) => ({
   },
 
   bumpShots: () => set((s) => ({ shotVersion: s.shotVersion + 1 })),
-  setPadRecording: (padRecording) => set({ padRecording })
+  setPadRecording: (padRecording) => set({ padRecording }),
+
+  setHostMode: async (on) => {
+    get().hostChanged(await window.storm.setHostMode(on))
+  },
+
+  hostChanged: (on) => {
+    if (on === get().hostMode) return
+    // The PC views' overlays do not carry over: host mode starts on its home
+    // screen, and leaving it comes back to the wall.
+    set(on ? { hostMode: true, selectedId: null, confirmId: null } : { hostMode: false })
+  }
 }))
 
 export type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string

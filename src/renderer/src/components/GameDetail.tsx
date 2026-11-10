@@ -16,6 +16,7 @@ import { acceleratorLabel } from '../utils/accelerator'
 import { comboKeys } from '../utils/gamepad'
 import { EASE, SPRING_SOFT } from '../motion'
 import Poster from './Poster'
+import ScreenshotViewer from './ScreenshotViewer'
 import {
   CameraIcon,
   ChevronIcon,
@@ -92,6 +93,8 @@ function Screenshots({ game }: { game: Game }): React.JSX.Element {
   const shotVersion = useStorm((s) => s.shotVersion)
   const openFolder = useStorm((s) => s.openFolder)
   const [shots, setShots] = useState<ScreenshotInfo[] | null>(null)
+  /** The viewer, open on this shot; it keeps the list it opened with while new shots land. */
+  const [viewing, setViewing] = useState<{ shots: ScreenshotInfo[]; index: number } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -138,9 +141,7 @@ function Screenshots({ game }: { game: Game }): React.JSX.Element {
                 key={shot.id}
                 className="shot"
                 title={formatDateTime(shot.takenAt, language, t)}
-                onClick={() =>
-                  more > 0 ? void openFolder('screenshots', game.id) : void window.storm.openScreenshot(shot.id)
-                }
+                onClick={() => setViewing({ shots, index: i })}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03, duration: 0.3, ease: EASE }}
@@ -152,6 +153,9 @@ function Screenshots({ game }: { game: Game }): React.JSX.Element {
           })}
         </div>
       )}
+      <AnimatePresence>
+        {viewing && <ScreenshotViewer shots={viewing.shots} index={viewing.index} onClose={() => setViewing(null)} />}
+      </AnimatePresence>
     </section>
   )
 }

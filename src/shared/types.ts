@@ -102,6 +102,10 @@ export interface AppSettings {
   screenshotSound: boolean
   /** Flash a small "saved" card in the corner of the screen. */
   screenshotNotify: boolean
+  /** Open straight into host mode — for a PC that lives under the TV. */
+  startInHostMode: boolean
+  /** Clicks and chimes as you move around host mode. */
+  hostSounds: boolean
 }
 
 export interface SessionRecord {
@@ -121,6 +125,11 @@ export interface ScreenshotRecord {
   file: string
   /** file name of the small preview inside the thumbs/ media folder */
   thumb: string | null
+  /**
+   * A full-size SDR copy inside thumbs/, kept only for shots saved as JPEG XR
+   * — no browser can show a .jxr, so the viewer shows this instead.
+   */
+  preview: string | null
   takenAt: string
 }
 
@@ -130,6 +139,8 @@ export interface ScreenshotInfo {
   gameId: string | null
   file: string
   thumbUrl: string | null
+  /** The full-size picture, for the viewer. */
+  url: string
   takenAt: string
 }
 
@@ -173,6 +184,8 @@ export interface LibrarySnapshot {
   running: RunningSession[]
   dataDir: string
   hotkey: HotkeyState
+  /** Whether the window is in host mode (fullscreen, controller-driven, read-only). */
+  host: boolean
   /** Set when the library file was unreadable and Storm started from a backup copy. */
   recoveredFrom: string | null
 }
@@ -197,7 +210,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // A PNG looks right everywhere; a .jxr needs an HDR-aware viewer.
   screenshotHdr: 'sdr',
   screenshotSound: true,
-  screenshotNotify: true
+  screenshotNotify: true,
+  startInHostMode: false,
+  hostSounds: true
 }
 
 export const ACCENTS: { id: string; label: string; color: string }[] = [

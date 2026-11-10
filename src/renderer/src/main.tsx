@@ -9,6 +9,8 @@ import './styles/detail.css'
 import './styles/form.css'
 import './styles/settings.css'
 import './styles/toast.css'
+import './styles/viewer.css'
+import './styles/host.css'
 
 // Paint the boot screen in the user's theme straight away — the library
 // (and with it the settings) only arrives a moment later.

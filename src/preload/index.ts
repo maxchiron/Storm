@@ -52,9 +52,12 @@ const api: StormApi = {
 
   takeScreenshot: () => ipcRenderer.invoke('storm:takeScreenshot'),
   listScreenshots: (gameId) => ipcRenderer.invoke('storm:listScreenshots', gameId),
-  openScreenshot: (id) => ipcRenderer.invoke('storm:openScreenshot', id),
+  listAllScreenshots: () => ipcRenderer.invoke('storm:listAllScreenshots'),
   pickScreenshotDir: () => ipcRenderer.invoke('storm:pickScreenshotDir'),
   suspendHotkey: (suspended, kind) => ipcRenderer.invoke('storm:suspendHotkey', suspended, kind),
+
+  setHostMode: (on) => ipcRenderer.invoke('storm:host:set', on),
+  hostActivity: () => ipcRenderer.send('storm:host:activity'),
 
   appVersion: () => ipcRenderer.invoke('storm:appVersion'),
   windowAction: (action) => ipcRenderer.invoke('storm:window', action),

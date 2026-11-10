@@ -376,6 +376,12 @@ export default function SettingsView(): React.JSX.Element {
               onChange={(v) => patch({ reduceMotion: v })}
               label={t('settings.reduceMotion')}
             />
+            <Toggle
+              checked={settings.startInHostMode}
+              onChange={(v) => patch({ startInHostMode: v })}
+              label={t('host.startIn')}
+              hint={t('host.startInHint')}
+            />
             <Row label={t('settings.scanInterval')}>
               <Segmented<number>
                 id="scan"

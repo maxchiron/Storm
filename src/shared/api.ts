@@ -68,13 +68,19 @@ export interface StormApi {
 
   takeScreenshot(): Promise<ScreenshotResult>
   listScreenshots(gameId: string): Promise<ScreenshotInfo[]>
-  openScreenshot(id: string): Promise<boolean>
+  /** Every screenshot Storm knows of, newest first — the host-mode album. */
+  listAllScreenshots(): Promise<ScreenshotInfo[]>
   pickScreenshotDir(): Promise<string | null>
   /** Pause the hotkey (or the controller combo) while Settings records a new one. */
   suspendHotkey(suspended: boolean, kind?: 'key' | 'pad'): Promise<HotkeyState>
 
+  /** Enter or leave host mode; resolves to whether host mode is now on. */
+  setHostMode(on: boolean): Promise<boolean>
+  /** The player is using a controller in host mode — keep the screen awake for a while. */
+  hostActivity(): void
+
   appVersion(): Promise<string>
-  windowAction(action: 'minimize' | 'maximize' | 'close'): Promise<boolean>
+  windowAction(action: 'minimize' | 'maximize' | 'close' | 'quit'): Promise<boolean>
   windowState(): Promise<'maximized' | 'normal'>
   on(channel: StormChannel, callback: (payload: unknown) => void): () => void
 }
@@ -87,7 +93,8 @@ export const STORM_CHANNELS = [
   'storm:window-state',
   'storm:screenshot',
   'storm:screenshot-failed',
-  'storm:hotkey'
+  'storm:hotkey',
+  'storm:host'
 ] as const
 
 export type StormChannel = (typeof STORM_CHANNELS)[number]

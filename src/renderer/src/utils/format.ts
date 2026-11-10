@@ -92,3 +92,22 @@ export function formatElapsed(startedAt: string, t: T): string {
   if (hours === 0) return `${mins} ${t('common.minutes')}`
   return `${hours} ${t('common.hours')} ${mins} ${t('common.minutes')}`
 }
+
+/** "3 days ago", "yesterday", "just now" — or the date, once it is more than a few weeks back. */
+export function formatRelative(iso: string | null, language: Language, t: T): string {
+  if (!iso) return t('common.never')
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return t('common.unknown')
+  const seconds = (Date.now() - then) / 1000
+  if (seconds < 0 || seconds > 28 * 86400) return formatDate(iso, language, t)
+  try {
+    const rtf = new Intl.RelativeTimeFormat(language === 'zh' ? 'zh-CN' : 'en', { numeric: 'auto' })
+    if (seconds < 60) return rtf.format(0, 'second')
+    if (seconds < 3600) return rtf.format(-Math.floor(seconds / 60), 'minute')
+    if (seconds < 86400) return rtf.format(-Math.floor(seconds / 3600), 'hour')
+    if (seconds < 7 * 86400) return rtf.format(-Math.floor(seconds / 86400), 'day')
+    return rtf.format(-Math.floor(seconds / (7 * 86400)), 'week')
+  } catch {
+    return formatDate(iso, language, t)
+  }
+}

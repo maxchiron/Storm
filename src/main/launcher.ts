@@ -37,6 +37,10 @@ interface ActiveSession {
   exePath: string
   startedAt: string
   pid: number | null
+  /** The folder the game is followed by, if processes can be listed. */
+  folder: string | null
+  /** What already ran from that folder before the launch — not part of the game. */
+  before: Set<number>
 }
 
 export type SessionListener = (running: RunningSession[]) => void
@@ -128,6 +132,19 @@ export class Launcher {
     return latest?.gameId ?? null
   }
 
+  /**
+   * The processes that make up a running game right now: the one Storm
+   * started, and whatever else runs from the game's folder.
+   */
+  processIds(gameId: string): Set<number> {
+    const session = this.active.get(gameId)
+    const out = new Set<number>()
+    if (!session) return out
+    if (session.pid) out.add(session.pid)
+    if (session.folder) for (const p of this.runningIn(session.folder, session.before) ?? []) out.add(p.pid)
+    return out
+  }
+
   /** Work out what to actually spawn for a game's executable. */
   private async command(game: Game): Promise<Command | null> {
     const exePath = game.exePath
@@ -214,7 +231,9 @@ export class Launcher {
       gameId: game.id,
       exePath,
       startedAt: new Date().toISOString(),
-      pid: child?.pid ?? null
+      pid: child?.pid ?? null,
+      folder,
+      before
     }
     this.active.set(game.id, session)
     this.emitRunning()
